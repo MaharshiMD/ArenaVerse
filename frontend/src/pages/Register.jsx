@@ -494,7 +494,7 @@ const Register = () => {
                 placeholder="At least 6 characters" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                minlength="6"
+                minLength="6"
                 required
               />
             </div>

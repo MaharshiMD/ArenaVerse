@@ -59,7 +59,7 @@ class ErrorBoundary extends Component {
               ArenaVerse encountered an unexpected rendering error. Don't worry, your account data and match progress are safe.
             </p>
 
-            {process.env.NODE_ENV !== 'production' && this.state.error && (
+            {this.state.error && (
               <div 
                 className="mb-4 text-xs text-start" 
                 style={{ 
