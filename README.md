@@ -89,19 +89,43 @@
 ### Prerequisites
 - Node.js (v18.x or higher)
 - MongoDB instance running locally (`mongodb://127.0.0.1:27017/arena_verse`) or MongoDB Atlas URI
+- Google Cloud Console account (for OAuth Client ID)
 
 ---
 
-### 1. Backend Setup
+### 1. Environment Configuration
+
+You must create a `.env` file in both the `backend` and `frontend` directories.
+
+**backend/.env**:
+```env
+PORT=5000
+MONGO_URI=mongodb://127.0.0.1:27017/arena_verse
+JWT_SECRET=your_jwt_secret
+GOOGLE_CLIENT_ID=your_google_oauth_client_id
+```
+
+**frontend/.env**:
+```env
+VITE_GOOGLE_CLIENT_ID=your_google_oauth_client_id
+```
+
+### 2. Backend Setup
 
 ```bash
 cd backend
 npm install
-node seed.js
 npm run dev
 ```
 
-### 2. Frontend Setup
+*(Optional)* To populate the database with initial Esports News and create your first Admin account, you can run the provided scripts in a new terminal:
+```bash
+cd backend
+node scripts/seedNews.js
+node scripts/makeAdmin.js
+```
+
+### 3. Frontend Setup
 
 ```bash
 cd frontend
@@ -111,17 +135,6 @@ npm run dev
 
 Visit **http://localhost:5173** in your web browser.
 Open API Documentation at **http://localhost:5000/api-docs**.
-
----
-
-## 🎮 Pre-Seeded Test Accounts
-
-| Role | Email | Password | Primary Capabilities |
-| :--- | :--- | :--- | :--- |
-| **Admin** | `admin@arena.com` | `password123` | Audit logs, anti-smurf review, user banning, dispute resolution |
-| **Organizer** | `org1@arena.com` | `password123` | Create tournaments, customize rules/fees, generate brackets, log scores, award MVPs |
-| **Player 1 (Captain)** | `play1@arena.com` | `password123` | Captain of *Cloud9 Reborn*, LFT/LFP posts, Arena Wallet deposits, Battle Pass |
-| **Player 2** | `play2@arena.com` | `password123` | Squad member, career stats, check in for matches, view PDF certificates |
 
 ---
 
