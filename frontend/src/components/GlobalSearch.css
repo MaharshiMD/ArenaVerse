@@ -1,0 +1,140 @@
+.global-search-container {
+  position: relative;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 15px;
+}
+
+.global-search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.global-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.global-search-control {
+  width: 100%;
+  padding: 8px 12px 8px 36px;
+  font-size: 13px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-primary);
+  outline: none;
+  transition: all 0.2s ease-in-out;
+}
+
+.global-search-control::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.global-search-control:focus {
+  background-color: var(--bg-tertiary);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.2);
+}
+
+.global-search-spinner-wrapper {
+  position: absolute;
+  right: 12px;
+}
+
+.global-search-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-color);
+  border-top: 2px solid var(--accent-primary);
+  border-radius: 50%;
+  animation: global-search-spin 0.6s linear infinite;
+}
+
+@keyframes global-search-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.global-search-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 100%;
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 9999;
+  background-color: var(--bg-secondary);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-color-glow);
+  border-radius: 8px;
+  box-shadow: var(--shadow-neon);
+  padding: 8px 0;
+}
+
+.global-search-results-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.global-search-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.global-search-item:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.global-search-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+}
+
+.global-search-trophy-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: rgba(139, 92, 246, 0.15);
+  color: var(--accent-primary);
+}
+
+.global-search-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.global-search-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.global-search-sub {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.global-search-loading-text,
+.global-search-empty-text {
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}

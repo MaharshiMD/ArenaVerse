@@ -1,0 +1,189 @@
+.tournament-chat-card {
+  padding: 1.5rem !important;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-md);
+}
+
+.chat-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.85rem;
+}
+
+.chat-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chat-title-group h4 {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0;
+}
+
+.live-status-pill {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+  padding: 0.2rem 0.6rem;
+  border-radius: 50px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+/* Pinned Banner */
+.pinned-message-banner {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin-top: 1rem;
+}
+
+.pinned-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.pinned-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #fbbf24;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-unpin {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.pinned-content {
+  font-size: 0.85rem;
+  color: #ffffff;
+}
+
+/* Feed Box */
+.chat-feed-box {
+  height: 340px;
+  overflow-y: auto;
+  margin-top: 1rem;
+  padding-right: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.chat-locked-notice {
+  text-align: center;
+  padding: 3rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.chat-message-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.chat-message-row.is-pinned-msg {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.chat-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+}
+
+.chat-message-body {
+  flex: 1;
+}
+
+.chat-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chat-sender-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.chat-sender-name:hover {
+  color: var(--accent-primary);
+}
+
+.host-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.2);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+}
+
+.btn-pin-action {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.4;
+  margin-left: auto;
+  transition: var(--transition);
+}
+
+.btn-pin-action:hover, .btn-pin-action.active {
+  opacity: 1;
+  color: #fbbf24;
+}
+
+.chat-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-top: 0.2rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+/* Input Form */
+.chat-input-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.btn-chat-send {
+  padding: 0 1rem;
+}

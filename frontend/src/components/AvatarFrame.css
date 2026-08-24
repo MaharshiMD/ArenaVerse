@@ -1,0 +1,85 @@
+.avatar-frame-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  padding: 3px;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.avatar-frame-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Void Flame Animated Frame */
+.frame-void-flame {
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 50%, #ec4899 100%);
+  box-shadow: 0 0 15px rgba(239, 68, 68, 0.8), 0 0 30px rgba(236, 72, 153, 0.6);
+  animation: voidFlamePulse 1.8s infinite alternate ease-in-out;
+}
+
+@keyframes voidFlamePulse {
+  0% {
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.6), 0 0 25px rgba(249, 115, 22, 0.4);
+    transform: scale(1);
+  }
+  100% {
+    box-shadow: 0 0 22px rgba(239, 68, 68, 0.95), 0 0 45px rgba(236, 72, 153, 0.85);
+    transform: scale(1.04);
+  }
+}
+
+.flame-particle-effect {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  font-size: 14px;
+  animation: flameBounce 1.2s infinite ease-in-out;
+  pointer-events: none;
+  filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8));
+}
+
+@keyframes flameBounce {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.9; }
+  50% { transform: translateY(-5px) scale(1.25); opacity: 1; }
+}
+
+/* Cyber Neon Frame */
+.frame-cyber-neon {
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #06b6d4 100%);
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.8), 0 0 30px rgba(139, 92, 246, 0.6);
+  animation: cyberNeonPulse 2s infinite alternate ease-in-out;
+}
+
+@keyframes cyberNeonPulse {
+  0% { box-shadow: 0 0 12px rgba(59, 130, 246, 0.6), 0 0 20px rgba(139, 92, 246, 0.4); }
+  100% { box-shadow: 0 0 22px rgba(59, 130, 246, 0.95), 0 0 40px rgba(6, 182, 212, 0.8); }
+}
+
+/* Gold Border */
+.frame-gold-border {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.8), 0 0 30px rgba(245, 158, 11, 0.5);
+}
+
+.equipped-title-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(139, 92, 246, 0.3));
+  border: 1px solid rgba(236, 72, 153, 0.5);
+  color: #f472b6;
+  text-shadow: 0 0 8px rgba(244, 114, 182, 0.5);
+  letter-spacing: 0.3px;
+}

@@ -1,0 +1,23 @@
+.dispute-modal-content {
+  max-width: 520px;
+  width: 90%;
+  background: rgba(15, 17, 26, 0.96) !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.25);
+  border-radius: var(--radius-md);
+}
+
+.dispute-modal-header {
+  border-bottom: 1px solid rgba(239, 68, 68, 0.25);
+  padding: 1.25rem 1.5rem;
+}
+
+.bg-danger-light {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.bg-success-light {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}

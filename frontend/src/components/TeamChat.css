@@ -1,0 +1,127 @@
+.team-chat-card {
+  padding: 1.5rem !important;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(99, 102, 241, 0.25) !important;
+  box-shadow: 0 0 25px rgba(99, 102, 241, 0.1) !important;
+}
+
+.team-chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.85rem;
+}
+
+.team-chat-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.team-chat-title h4 {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0;
+}
+
+.squad-encrypted-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #818cf8;
+  background: rgba(99, 102, 241, 0.15);
+  padding: 0.2rem 0.6rem;
+  border-radius: 50px;
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.team-chat-feed {
+  height: 320px;
+  overflow-y: auto;
+  margin-top: 1rem;
+  padding-right: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.team-chat-locked {
+  text-align: center;
+  padding: 3rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.team-chat-msg-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.team-chat-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border-color);
+}
+
+.team-chat-body {
+  flex: 1;
+}
+
+.team-chat-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.team-sender-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #ffffff;
+}
+
+.captain-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.team-msg-time {
+  margin-left: auto;
+}
+
+.team-msg-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-top: 0.2rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.team-chat-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.team-chat-input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.btn-team-send {
+  padding: 0 1rem;
+}

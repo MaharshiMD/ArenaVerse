@@ -1,0 +1,419 @@
+.tournament-details-page {
+  padding-top: 2rem;
+}
+
+.details-header {
+  padding: 0 !important;
+  overflow: hidden;
+  position: relative;
+}
+
+.details-banner {
+  width: 100%;
+  height: 250px;
+  object-fit: cover;
+}
+
+.details-header-content {
+  padding: 2rem;
+  background: linear-gradient(180deg, rgba(7, 8, 11, 0) 0%, rgba(7, 8, 11, 0.95) 100%);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  color: #ffffff !important;
+}
+
+.details-badges {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.details-header-content h1 {
+  font-size: 2.2rem;
+  margin-bottom: 0.5rem;
+  color: #ffffff !important;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+}
+
+.details-subtitle,
+.details-subtitle span {
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-size: 0.95rem;
+}
+
+.details-info-grid .info-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.info-icon {
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  color: var(--text-secondary);
+}
+
+.text-yellow { color: var(--warning); background-color: rgba(245, 158, 11, 0.1); }
+.text-green { color: var(--success); background-color: rgba(16, 185, 129, 0.1); }
+
+.info-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.info-value {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+/* Registration Bar */
+.registration-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  border-left: 4px solid var(--accent-primary);
+  padding: 1.5rem !important;
+}
+
+.registration-status-text {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.status-icon {
+  color: var(--accent-primary);
+}
+
+.registration-status-text h4 {
+  font-size: 1.1rem;
+}
+
+.registration-status-text p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.team-reg-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.team-select-group {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.registered-team-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.registered-team-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+}
+
+.no-teams-warning {
+  font-size: 0.85rem;
+  color: var(--warning);
+}
+
+/* Tabs defined centrally in shared-tabs.css */
+
+/* Panels */
+.rules-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.participants-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.participant-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.avatar-small {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  overflow: hidden;
+}
+
+.avatar-small img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.warning-icon {
+  color: var(--warning);
+}
+
+/* Champion Announcement Banner */
+.champion-announcement-banner {
+  background: radial-gradient(circle at 50% 0%, rgba(245, 158, 11, 0.18) 0%, rgba(15, 17, 24, 0.95) 75%) !important;
+  border: 1px solid rgba(245, 158, 11, 0.4) !important;
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.2) !important;
+  padding: 2rem !important;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.champion-announcement-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.trophy-gold-glow {
+  color: #fbbf24;
+  filter: drop-shadow(0 0 12px #fbbf24);
+  animation: pulseGold 2s infinite ease-in-out;
+}
+
+.champion-announcement-header h2 {
+  font-size: 1.8rem;
+  color: #fef08a;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.champion-announcement-header .subtitle {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.champion-cards-row {
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.podium-card {
+  flex: 1;
+  min-width: 260px;
+  max-width: 380px;
+  padding: 1.75rem 1.5rem;
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+  transition: var(--transition);
+}
+
+.podium-card:hover {
+  transform: translateY(-4px);
+}
+
+.champion-card {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(180, 83, 9, 0.15) 100%);
+  border: 1.5px solid rgba(245, 158, 11, 0.7);
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.3);
+}
+
+.runner-card {
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.2) 0%, rgba(71, 85, 105, 0.12) 100%);
+  border: 1.5px solid rgba(148, 163, 184, 0.5);
+  box-shadow: 0 0 15px rgba(148, 163, 184, 0.2);
+}
+
+.podium-rank-badge {
+  position: absolute;
+  top: -12px;
+  padding: 0.25rem 1rem;
+  border-radius: 50px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.rank-1 {
+  background: #f59e0b;
+  color: #000000;
+  box-shadow: 0 0 10px #f59e0b;
+}
+
+.rank-2 {
+  background: #94a3b8;
+  color: #000000;
+  box-shadow: 0 0 8px #94a3b8;
+}
+
+.crown-gold-icon {
+  color: #fbbf24;
+  filter: drop-shadow(0 0 8px #fbbf24);
+  margin-top: 0.5rem;
+}
+
+.medal-silver-icon {
+  color: #cbd5e1;
+  filter: drop-shadow(0 0 6px #cbd5e1);
+  margin-top: 0.5rem;
+}
+
+.winner-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0.25rem 0;
+}
+
+.champion-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fef08a;
+  letter-spacing: 0.05em;
+}
+
+.runner-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  letter-spacing: 0.05em;
+}
+
+.prize-won-tag {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--success);
+  background: rgba(16, 185, 129, 0.15);
+  padding: 0.3rem 0.8rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+@keyframes pulseGold {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 12px #fbbf24); }
+  50% { transform: scale(1.08); filter: drop-shadow(0 0 20px #fbbf24); }
+}
+
+@media (max-width: 768px) {
+  .details-banner {
+    height: 180px;
+  }
+  
+  .details-header-content h1 {
+    font-size: 1.6rem;
+  }
+
+  .registration-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .team-select-group {
+    flex-direction: column;
+  }
+
+  .champion-cards-row {
+    flex-direction: column;
+    align-items: center;
+  }
+}
+
+/* Organizer Announcements Styles */
+.panel-announcements {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.post-announcement-box {
+  background: rgba(15, 23, 42, 0.85) !important;
+  border: 1px solid rgba(99, 102, 241, 0.3) !important;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.15) !important;
+  padding: 1.5rem !important;
+}
+
+.announcements-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.announcement-feed-card {
+  padding: 1.25rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: var(--transition);
+}
+
+.announcement-feed-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.announcement-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.announcement-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.megaphone-badge {
+  font-size: 1.1rem;
+}
+
+.announcement-feed-title {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.announcement-feed-content {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
