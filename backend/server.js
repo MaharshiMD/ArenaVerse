@@ -75,7 +75,11 @@ const swaggerSpec = {
     version: '2.0.0',
     description: 'Complete OpenAPI 3.0 Documentation for ArenaVerse Tournament Engine & Community Services',
   },
-  servers: [{ url: 'http://localhost:5000/api' }],
+  servers: [
+    {
+      url: `${process.env.BACKEND_URL || 'http://localhost:5000'}/api`,
+    },
+  ],
 };
 
 // Global Rate Limiter
@@ -181,6 +185,6 @@ const PORT = process.env.PORT || 5000;
 server.timeout = 120000; // 2 minutes server timeout for long-running AI requests
 server.keepAliveTimeout = 120000;
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
