@@ -50,7 +50,6 @@ const OrganizerDashboard = () => {
   const [minTeamMembers, setMinTeamMembers] = useState('');
   const [maxTeamMembers, setMaxTeamMembers] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [autoSeedTeams, setAutoSeedTeams] = useState(true);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
 
@@ -195,7 +194,6 @@ const OrganizerDashboard = () => {
           type,
           minTeamMembers: type === 'team' ? Number(minTeamMembers) : type === 'duo' ? 2 : 1,
           maxTeamMembers: type === 'team' ? Number(maxTeamMembers) : type === 'duo' ? 2 : 1,
-          autoSeedTeams,
         }),
       });
 
@@ -246,7 +244,7 @@ const OrganizerDashboard = () => {
           'Content-Type': 'application/json',
           ...getAuthHeader(),
         },
-        body: JSON.stringify({ bracketType, autoSeed: true }),
+        body: JSON.stringify({ bracketType }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to publish');
@@ -677,19 +675,6 @@ const OrganizerDashboard = () => {
               <textarea rows="4" className="form-control" placeholder="1. Respect opponents. 2. Record match clips..." value={rules} onChange={e => setRules(e.target.value)} required />
             </div>
 
-            <div className="form-group w-full flex items-center gap-2" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
-              <input 
-                type="checkbox" 
-                id="autoSeedTeams" 
-                checked={autoSeedTeams} 
-                onChange={e => setAutoSeedTeams(e.target.checked)} 
-                style={{ width: '18px', height: '18px' }}
-              />
-              <label htmlFor="autoSeedTeams" className="form-label m-0 text-xs text-white" style={{ cursor: 'pointer' }}>
-                ⚡ Pre-fill with 4 demo esports teams/competitors (Ready to Publish & Start Brackets immediately)
-              </label>
-            </div>
-
             <div className="w-full mt-4 flex gap-1 justify-end">
               <button type="button" className="btn btn-secondary" onClick={() => setShowCreateForm(false)}>Cancel</button>
               <button type="submit" className="btn btn-primary">Create Draft Arena</button>
@@ -803,8 +788,10 @@ const OrganizerDashboard = () => {
                                   className="btn btn-primary btn-sm"
                                   onClick={() => setActivePublishId(t._id)}
                                   style={{ padding: '4px 10px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                  disabled={t.prizePool > 0 && t.prizePoolStatus !== 'FUNDED'}
+                                  title={t.prizePool > 0 && t.prizePoolStatus !== 'FUNDED' ? "You must fund the prize pool first" : "Publish Tournament"}
                                 >
-                                  <Globe size={14} /> 🚀 Publish Live
+                                  <Globe size={14} /> Publish Live
                                 </button>
                                 
                                 {t.prizePool > 0 && t.prizePoolStatus === 'PENDING_FUNDING' && (

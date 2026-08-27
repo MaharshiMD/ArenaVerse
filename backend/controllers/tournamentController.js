@@ -514,6 +514,10 @@ const publishTournament = async (req, res) => {
       return res.status(400).json({ message: 'Tournament is already published or active' });
     }
 
+    if (tournament.prizePool > 0 && tournament.prizePoolStatus !== 'FUNDED') {
+      return res.status(400).json({ message: 'You must securely fund the prize pool before publishing the tournament.' });
+    }
+
     let participants = tournament.type === 'solo' 
       ? await User.find({ _id: { $in: tournament.registeredPlayers } })
       : await Team.find({ _id: { $in: tournament.registeredTeams } });
