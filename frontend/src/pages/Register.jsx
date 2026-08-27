@@ -194,7 +194,13 @@ const Register = () => {
       const challengeData = await register(username, email, password, role);
       setRegisterChallenge(challengeData);
       setResendCooldown(60);
-      setOtpDigits(['', '', '', '', '', '']);
+      
+      if (challengeData.devOtp) {
+        setOtpDigits(String(challengeData.devOtp).split(''));
+        setResendMessage('Development Mode: OTP auto-filled from console.');
+      } else {
+        setOtpDigits(['', '', '', '', '', '']);
+      }
     } catch (err) {
       setError(err.message || 'Registration failed.');
     } finally {

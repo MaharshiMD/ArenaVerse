@@ -439,6 +439,7 @@ const initiateRegisterOTP = async (req, res) => {
       challengeId,
       maskedEmail: maskEmail(cleanEmail),
       cooldownSeconds: 60,
+      devOtp: (!process.env.SMTP_HOST || !process.env.SMTP_USER) ? otp : undefined
     });
   } catch (error) {
     console.error('Error in initiateRegisterOTP:', error);
