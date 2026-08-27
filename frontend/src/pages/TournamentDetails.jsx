@@ -7,7 +7,7 @@ import TournamentChat from '../components/TournamentChat';
 import TournamentReviews from '../components/TournamentReviews';
 import TournamentHighlights from '../components/TournamentHighlights';
 import DisputeModal from '../components/DisputeModal';
-import { Calendar, Award, IndianRupee, Users, BookOpen, UserCheck, AlertTriangle, ArrowLeft, Trophy, Crown, Medal, Megaphone, Send, MessageSquare, FileText, Download, Star, Eye, ShieldAlert, Sparkles, Wallet, CreditCard, Globe } from 'lucide-react';
+import { Calendar, Award, IndianRupee, Users, BookOpen, UserCheck, AlertTriangle, ArrowLeft, Trophy, Crown, Medal, Megaphone, Send, MessageSquare, FileText, Download, Star, Eye, ShieldAlert, ShieldCheck, Sparkles, Wallet, CreditCard, Globe } from 'lucide-react';
 import EsportsCertificateModal from '../components/EsportsCertificateModal';
 import { API_BASE_URL } from '../config/api';
 import './TournamentDetails.css';
