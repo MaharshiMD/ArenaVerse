@@ -43,6 +43,7 @@ const OrganizerDashboard = () => {
   const [startDate, setStartDate] = useState('');
   const [entryFee, setEntryFee] = useState('');
   const [prizePool, setPrizePool] = useState('');
+  const [prizeDistribution, setPrizeDistribution] = useState([{ position: 1, amount: '' }]);
   const [rules, setRules] = useState('');
   const [maxTeams, setMaxTeams] = useState('16');
   const [type, setType] = useState('team'); // 'solo', 'duo', or 'team'
@@ -109,6 +110,14 @@ const OrganizerDashboard = () => {
     e.preventDefault();
     setFormError('');
     setFormSuccess('');
+
+    const totalDistributed = prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+    const parsedPrizePool = Number(prizePool) || 0;
+
+    if (totalDistributed > parsedPrizePool) {
+      setFormError(`Prize distribution (₹${totalDistributed}) cannot exceed the total prize pool (₹${parsedPrizePool}).`);
+      return;
+    }
 
     if (!name.trim()) {
       setFormError('Tournament Name is required.');
@@ -179,7 +188,8 @@ const OrganizerDashboard = () => {
           banner,
           startDate,
           entryFee: Number(entryFee),
-          prizePool: Number(prizePool),
+          prizePool: parsedPrizePool,
+          prizeDistribution: prizeDistribution.map(p => ({ position: p.position, amount: Number(p.amount) || 0 })),
           rules: rules.trim(),
           maxTeams: Number(maxTeams),
           type,
@@ -201,6 +211,7 @@ const OrganizerDashboard = () => {
       setStartDate('');
       setEntryFee('');
       setPrizePool('');
+      setPrizeDistribution([{ position: 1, amount: '' }]);
       setRules('');
       setMaxTeams('16');
       setMinTeamMembers('');
@@ -242,6 +253,26 @@ const OrganizerDashboard = () => {
 
       alert('🎉 Tournament published live! Brackets successfully generated and matches are active.');
       setActivePublishId('');
+      fetchMyTournaments();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const handleFundPrizePool = async (id, poolAmount) => {
+    if (!window.confirm(`Are you sure you want to securely fund ₹${poolAmount} from your Arena Wallet? This will lock the prize distribution.`)) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/payments/fund-prize-pool`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({ tournamentId: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to fund prize pool');
+      alert('✅ Prize pool successfully funded and secured!');
       fetchMyTournaments();
     } catch (err) {
       alert(err.message);
@@ -512,6 +543,74 @@ const OrganizerDashboard = () => {
               <input type="number" min="0" placeholder="5000" className="form-control" value={prizePool} onChange={e => setPrizePool(e.target.value)} required />
             </div>
 
+            {Number(prizePool) > 0 && (
+              <div className="form-group w-full" style={{ background: 'rgba(0,0,0,0.2)', padding: '15px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <label className="form-label text-md" style={{ color: '#fff' }}>
+                  PRIZE DISTRIBUTION <span className="required-asterisk">*</span>
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {prizeDistribution.map((p, index) => (
+                    <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <span style={{ minWidth: '80px', fontWeight: 'bold' }}>{p.position}{p.position === 1 ? 'st' : p.position === 2 ? 'nd' : p.position === 3 ? 'rd' : 'th'} Place</span>
+                      <input 
+                        type="number" 
+                        min="0"
+                        className="form-control" 
+                        placeholder="Amount (₹)" 
+                        value={p.amount} 
+                        onChange={e => {
+                          const updated = [...prizeDistribution];
+                          updated[index].amount = e.target.value;
+                          setPrizeDistribution(updated);
+                        }} 
+                        style={{ flex: 1 }}
+                        required
+                      />
+                      {prizeDistribution.length > 1 && (
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            const updated = prizeDistribution.filter((_, i) => i !== index).map((item, i) => ({ ...item, position: i + 1 }));
+                            setPrizeDistribution(updated);
+                          }}
+                          style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer' }}
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                
+                <button 
+                  type="button" 
+                  className="btn btn-secondary btn-sm mt-3" 
+                  onClick={() => setPrizeDistribution([...prizeDistribution, { position: prizeDistribution.length + 1, amount: '' }])}
+                >
+                  <PlusCircle size={14} style={{ marginRight: '6px' }} /> Add Position
+                </button>
+
+                <div className="mt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                    <span>Distributed: ₹{prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)}</span>
+                    <span style={{ color: (Number(prizePool) - prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)) < 0 ? '#f87171' : '#94a3b8' }}>
+                      Remaining: ₹{Number(prizePool) - prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)}
+                    </span>
+                  </div>
+                  {(Number(prizePool) - prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)) < 0 && (
+                    <div style={{ color: '#f87171', fontSize: '13px', marginTop: '5px' }}>
+                      ✕ Prize distribution exceeds the total prize pool.
+                    </div>
+                  )}
+                  {(Number(prizePool) - prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)) >= 0 && (
+                    <div style={{ color: '#4ade80', fontSize: '13px', marginTop: '5px' }}>
+                      ✓ Prize distribution is valid.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="form-row form-group w-full">
               <div>
                 <label className="form-label">
@@ -707,6 +806,17 @@ const OrganizerDashboard = () => {
                                 >
                                   <Globe size={14} /> 🚀 Publish Live
                                 </button>
+                                
+                                {t.prizePool > 0 && t.prizePoolStatus === 'PENDING_FUNDING' && (
+                                  <button 
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => handleFundPrizePool(t._id, t.prizePool)}
+                                    style={{ padding: '4px 10px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#3b82f6', color: 'white', border: 'none' }}
+                                  >
+                                    Fund ₹{t.prizePool}
+                                  </button>
+                                )}
+
                                 <button 
                                   className="btn-table-action btn-action-delete"
                                   onClick={() => handleDelete(t._id)}

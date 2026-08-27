@@ -15,7 +15,7 @@ const {
 // @route   POST /api/tournaments
 // @access  Private (Organizer/Admin only)
 const createTournament = async (req, res) => {
-  const { name, game, banner, startDate, entryFee, prizePool, rules, maxTeams, type, minTeamMembers, maxTeamMembers } = req.body;
+  const { name, game, banner, startDate, entryFee, prizePool, prizeDistribution, rules, maxTeams, type, minTeamMembers, maxTeamMembers } = req.body;
 
   try {
     const tournamentType = type || 'team';
@@ -30,13 +30,37 @@ const createTournament = async (req, res) => {
       calculatedMax = 2;
     }
 
+    const calculatedPrizePool = Number(prizePool) || 0;
+    
+    // Validate prize distribution
+    let validPrizeDistribution = [];
+    if (prizeDistribution && Array.isArray(prizeDistribution) && calculatedPrizePool > 0) {
+      let sum = 0;
+      const positions = new Set();
+      for (const pd of prizeDistribution) {
+        if (!pd.position || pd.amount == null || pd.amount < 0) {
+          return res.status(400).json({ message: 'Invalid prize distribution configuration' });
+        }
+        if (positions.has(pd.position)) {
+          return res.status(400).json({ message: `Duplicate position ${pd.position} in prize distribution` });
+        }
+        positions.add(pd.position);
+        sum += pd.amount;
+        validPrizeDistribution.push({ position: pd.position, amount: pd.amount });
+      }
+      if (sum > calculatedPrizePool) {
+        return res.status(400).json({ message: 'Prize distribution cannot exceed the total prize pool' });
+      }
+    }
+
     const tournament = await Tournament.create({
       name,
       game,
       banner,
       startDate,
       entryFee: Number(entryFee) || 0,
-      prizePool: Number(prizePool) || 0,
+      prizePool: calculatedPrizePool,
+      prizeDistribution: validPrizeDistribution,
       rules,
       maxTeams: Number(maxTeams) || 16,
       type: tournamentType,
@@ -44,6 +68,7 @@ const createTournament = async (req, res) => {
       maxTeamMembers: calculatedMax,
       organizer: req.user._id,
       status: 'draft',
+      prizePoolStatus: 'PENDING_FUNDING',
     });
 
     if (req.body.autoSeedTeams || req.body.prepopulate) {
@@ -95,12 +120,47 @@ const editTournament = async (req, res) => {
       return res.status(400).json({ message: 'Cannot edit an active or completed tournament' });
     }
 
+    // Prize Pool and Distribution Locking Logic
+    if (tournament.prizePoolStatus === 'FUNDED') {
+      if (
+        (req.body.prizePool !== undefined && req.body.prizePool !== tournament.prizePool) ||
+        (req.body.prizeDistribution !== undefined)
+      ) {
+        return res.status(400).json({ message: 'Prize pool and distribution cannot be modified after funding is secured.' });
+      }
+    } else {
+      const updatedPrizePool = req.body.prizePool !== undefined ? Number(req.body.prizePool) : tournament.prizePool;
+      tournament.prizePool = updatedPrizePool;
+
+      if (req.body.prizeDistribution !== undefined) {
+        let validPrizeDistribution = [];
+        if (Array.isArray(req.body.prizeDistribution) && updatedPrizePool > 0) {
+          let sum = 0;
+          const positions = new Set();
+          for (const pd of req.body.prizeDistribution) {
+            if (!pd.position || pd.amount == null || pd.amount < 0) {
+              return res.status(400).json({ message: 'Invalid prize distribution configuration' });
+            }
+            if (positions.has(pd.position)) {
+              return res.status(400).json({ message: `Duplicate position ${pd.position} in prize distribution` });
+            }
+            positions.add(pd.position);
+            sum += pd.amount;
+            validPrizeDistribution.push({ position: pd.position, amount: pd.amount });
+          }
+          if (sum > updatedPrizePool) {
+            return res.status(400).json({ message: 'Prize distribution cannot exceed the total prize pool' });
+          }
+        }
+        tournament.prizeDistribution = validPrizeDistribution;
+      }
+    }
+
     tournament.name = req.body.name ?? tournament.name;
     tournament.game = req.body.game ?? tournament.game;
     tournament.banner = req.body.banner ?? tournament.banner;
     tournament.startDate = req.body.startDate ?? tournament.startDate;
     tournament.entryFee = req.body.entryFee ?? tournament.entryFee;
-    tournament.prizePool = req.body.prizePool ?? tournament.prizePool;
     tournament.rules = req.body.rules ?? tournament.rules;
     tournament.maxTeams = req.body.maxTeams ?? tournament.maxTeams;
     tournament.type = req.body.type ?? tournament.type;

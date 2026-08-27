@@ -472,6 +472,14 @@ const TournamentDetails = () => {
     }
   };
 
+  const getPrizeAmount = (position) => {
+    if (!tournament.prizeDistribution || tournament.prizeDistribution.length === 0) {
+      return position === 1 ? Math.round(tournament.prizePool * 0.7) : Math.round(tournament.prizePool * 0.3);
+    }
+    const pd = tournament.prizeDistribution.find(p => p.position === position);
+    return pd ? pd.amount : 0;
+  };
+
   return (
     <div className="tournament-details-page container">
       {/* Top Back Navigation Bar & Dispute Trigger */}
@@ -549,7 +557,7 @@ const TournamentDetails = () => {
                   <h3 className="winner-title">{effectiveWinner}</h3>
                   <p className="champion-label">🏆 TOURNAMENT CHAMPION</p>
                   {tournament.prizePool > 0 && (
-                    <p className="prize-won-tag">Prize Won: ₹{Math.round(tournament.prizePool * 0.7)}</p>
+                    <p className="prize-won-tag">Prize Won: ₹{getPrizeAmount(1)}</p>
                   )}
                   {isUserChampion ? (
                     <button 
@@ -575,7 +583,7 @@ const TournamentDetails = () => {
                   <h3 className="winner-title">{effectiveRunnerUp}</h3>
                   <p className="runner-label">🥈 RUNNER-UP</p>
                   {tournament.prizePool > 0 && (
-                    <p className="prize-won-tag">Prize Won: ₹{Math.round(tournament.prizePool * 0.3)}</p>
+                    <p className="prize-won-tag">Prize Won: ₹{getPrizeAmount(2)}</p>
                   )}
                   {isUserRunnerUp ? (
                     <button 
@@ -608,13 +616,30 @@ const TournamentDetails = () => {
           </div>
         </div>
 
-        <div className="info-card glass-panel">
-          <Award className="info-icon text-yellow" />
-          <div>
-            <p className="info-label">Prize Pool</p>
-            <p className="info-value">₹{tournament.prizePool}</p>
+          <div className="info-card glass-panel">
+            <Award className="info-icon text-yellow" />
+            <div>
+              <p className="info-label">Prize Pool</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <p className="info-value">₹{tournament.prizePool}</p>
+                {tournament.prizePool > 0 && tournament.prizePoolStatus === 'FUNDED' && (
+                  <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '2px 6px', fontSize: '0.65rem' }}>
+                    <ShieldCheck size={12} style={{ display: 'inline', marginRight: '3px' }} />
+                    SECURED BY ARENAVERSE
+                  </span>
+                )}
+              </div>
+              {tournament.prizeDistribution && tournament.prizeDistribution.length > 0 && (
+                <div className="text-xs text-secondary mt-1">
+                  {tournament.prizeDistribution.map(p => (
+                    <div key={p.position}>
+                      {p.position}{p.position === 1 ? 'st' : p.position === 2 ? 'nd' : p.position === 3 ? 'rd' : 'th'}: ₹{p.amount}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
         <div className="info-card glass-panel">
           <IndianRupee className="info-icon text-green" />

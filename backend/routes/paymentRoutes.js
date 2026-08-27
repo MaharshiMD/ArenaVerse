@@ -9,6 +9,7 @@ const {
   payWithWallet,
   initiateRazorpayWithdrawal,
   quickTopUpWallet,
+  fundTournamentPrizePool,
 } = require('../controllers/paymentController');
 const { protect } = require('../middleware/auth');
 
@@ -22,5 +23,6 @@ router.post('/verify-wallet-deposit', verifyWalletDeposit);
 router.post('/pay-with-wallet', payWithWallet);
 router.post('/initiate-withdrawal', initiateRazorpayWithdrawal);
 router.post('/quick-topup', quickTopUpWallet);
+router.post('/fund-prize-pool', fundTournamentPrizePool);
 
 module.exports = router;

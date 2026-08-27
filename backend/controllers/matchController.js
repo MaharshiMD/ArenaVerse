@@ -2,6 +2,52 @@ const Match = require('../models/Match');
 const Tournament = require('../models/Tournament');
 const Team = require('../models/Team');
 const TournamentResult = require('../models/TournamentResult');
+const Wallet = require('../models/Wallet');
+const FinancialTransaction = require('../models/FinancialTransaction');
+
+const processPayout = async (tournamentId, userId, amount, position) => {
+  if (!amount || amount <= 0) return;
+  
+  const existingPayout = await FinancialTransaction.findOne({
+    tournament: tournamentId,
+    user: userId,
+    type: 'PRIZE_PAYOUT'
+  });
+  if (existingPayout) return; 
+  
+  let wallet = await Wallet.findOne({ user: userId });
+  if (!wallet) {
+    wallet = await Wallet.create({ user: userId, balance: 0 });
+  }
+  
+  wallet.balance += amount;
+  const refId = `PAYOUT_${Date.now()}_${tournamentId.toString().slice(-6)}_${userId.toString().slice(-6)}`;
+  wallet.transactions.push({
+    type: 'prize_payout',
+    amount: amount,
+    description: `Prize Payout for Position ${position} in tournament.`,
+    referenceId: refId,
+    status: 'completed',
+    createdAt: new Date(),
+  });
+  await wallet.save();
+
+  await FinancialTransaction.create({
+    transactionId: refId,
+    tournament: tournamentId,
+    user: userId,
+    type: 'PRIZE_PAYOUT',
+    amount: amount,
+    currency: 'INR',
+    status: 'SUCCESS'
+  });
+};
+
+const getPrizeAmount = (distribution, position) => {
+  if (!distribution || !Array.isArray(distribution)) return 0;
+  const pd = distribution.find(d => d.position === position);
+  return pd ? pd.amount : 0;
+};
 
 const createTournamentResults = async (tournamentId, winnerId, loserId) => {
   try {
@@ -12,9 +58,8 @@ const createTournamentResults = async (tournamentId, winnerId, loserId) => {
     const count = await TournamentResult.countDocuments({ tournament: tournamentId });
     if (count > 0) return;
 
-    const prizePool = tournament.prizePool || 0;
-    const prize1st = Math.round(prizePool * 0.7);
-    const prize2nd = Math.round(prizePool * 0.3);
+    const prize1st = getPrizeAmount(tournament.prizeDistribution, 1);
+    const prize2nd = getPrizeAmount(tournament.prizeDistribution, 2);
 
     if (tournament.type === 'solo') {
       if (winnerId) {
@@ -26,6 +71,9 @@ const createTournamentResults = async (tournamentId, winnerId, loserId) => {
           placement: 1,
           prizeWon: prize1st,
         });
+        if (tournament.prizePoolStatus === 'FUNDED') {
+          await processPayout(tournamentId, winnerId, prize1st, 1);
+        }
       }
       if (loserId) {
         await TournamentResult.create({
@@ -36,6 +84,9 @@ const createTournamentResults = async (tournamentId, winnerId, loserId) => {
           placement: 2,
           prizeWon: prize2nd,
         });
+        if (tournament.prizePoolStatus === 'FUNDED') {
+          await processPayout(tournamentId, loserId, prize2nd, 2);
+        }
       }
       for (let pId of tournament.registeredPlayers) {
         if (pId.toString() !== winnerId?.toString() && pId.toString() !== loserId?.toString()) {
@@ -52,31 +103,41 @@ const createTournamentResults = async (tournamentId, winnerId, loserId) => {
     } else {
       if (winnerId) {
         const winnerTeam = await Team.findById(winnerId).populate('members');
-        if (winnerTeam) {
+        if (winnerTeam && winnerTeam.members.length > 0) {
+          const splitPrize = Math.floor(prize1st / winnerTeam.members.length);
           for (let member of winnerTeam.members) {
+            const mId = member._id || member;
             await TournamentResult.create({
               tournament: tournamentId,
-              player: member._id || member,
+              player: mId,
               team: winnerTeam._id,
               teamName: winnerTeam.name,
               placement: 1,
-              prizeWon: prize1st,
+              prizeWon: splitPrize,
             });
+            if (tournament.prizePoolStatus === 'FUNDED') {
+              await processPayout(tournamentId, mId, splitPrize, 1);
+            }
           }
         }
       }
       if (loserId) {
         const loserTeam = await Team.findById(loserId).populate('members');
-        if (loserTeam) {
+        if (loserTeam && loserTeam.members.length > 0) {
+          const splitPrize = Math.floor(prize2nd / loserTeam.members.length);
           for (let member of loserTeam.members) {
+            const mId = member._id || member;
             await TournamentResult.create({
               tournament: tournamentId,
-              player: member._id || member,
+              player: mId,
               team: loserTeam._id,
               teamName: loserTeam.name,
               placement: 2,
-              prizeWon: prize2nd,
+              prizeWon: splitPrize,
             });
+            if (tournament.prizePoolStatus === 'FUNDED') {
+              await processPayout(tournamentId, mId, splitPrize, 2);
+            }
           }
         }
       }
@@ -97,6 +158,12 @@ const createTournamentResults = async (tournamentId, winnerId, loserId) => {
           }
         }
       }
+    }
+
+    if (tournament.prizePoolStatus === 'FUNDED') {
+      tournament.prizePoolStatus = 'PRIZES_PAID';
+      tournament.resultsFinalizedAt = new Date();
+      await tournament.save();
     }
   } catch (err) {
     console.error('Error creating tournament results:', err);

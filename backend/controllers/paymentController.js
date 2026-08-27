@@ -532,6 +532,89 @@ const quickTopUpWallet = async (req, res) => {
   }
 };
 
+// @desc    Fund Tournament Prize Pool using Arena Wallet Balance
+// @route   POST /api/payments/fund-prize-pool
+// @access  Private (Organizer/Admin only)
+const fundTournamentPrizePool = async (req, res) => {
+  try {
+    const { tournamentId } = req.body;
+
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) {
+      return res.status(404).json({ message: 'Tournament not found' });
+    }
+
+    if (
+      tournament.organizer.toString() !== req.user._id.toString() &&
+      req.user.role !== 'admin'
+    ) {
+      return res.status(403).json({ message: 'Not authorized to fund this tournament' });
+    }
+
+    if (tournament.prizePoolStatus === 'FUNDED') {
+      return res.status(400).json({ message: 'Tournament prize pool is already funded.' });
+    }
+
+    if (tournament.prizePool <= 0) {
+      return res.status(400).json({ message: 'This tournament has no prize pool configured.' });
+    }
+
+    const Wallet = require('../models/Wallet');
+    const FinancialTransaction = require('../models/FinancialTransaction');
+    
+    let wallet = await Wallet.findOne({ user: req.user._id });
+    if (!wallet || wallet.balance < tournament.prizePool) {
+      return res.status(400).json({
+        message: `Insufficient Arena Wallet balance. You need ₹${tournament.prizePool}, but have ₹${wallet?.balance || 0}. Please deposit funds to your wallet.`
+      });
+    }
+
+    // Deduct the prize pool from wallet
+    wallet.balance -= tournament.prizePool;
+    const refId = `FUND_${Date.now()}_${tournamentId.toString().slice(-6)}`;
+    wallet.transactions.push({
+      type: 'withdraw',
+      amount: tournament.prizePool,
+      description: `Funded Prize Pool for tournament: "${tournament.name}"`,
+      referenceId: refId,
+      status: 'completed',
+      createdAt: new Date(),
+    });
+    await wallet.save();
+
+    // Create FinancialTransaction for audit
+    await FinancialTransaction.create({
+      transactionId: refId,
+      tournament: tournamentId,
+      user: req.user._id,
+      type: 'PRIZE_POOL_FUNDING',
+      amount: tournament.prizePool,
+      currency: 'INR',
+      status: 'SUCCESS'
+    });
+
+    // Update Tournament status
+    tournament.prizePoolStatus = 'FUNDED';
+    tournament.prizePoolFundedAt = new Date();
+    await tournament.save();
+
+    const { createNotification } = require('../utils/notificationHelper');
+    await createNotification({
+      recipient: req.user._id,
+      type: 'payment_success',
+      title: 'Prize Pool Funded',
+      message: `You successfully funded ₹${tournament.prizePool} for "${tournament.name}". The prize distribution is now locked.`,
+      link: `/tournaments/${tournament._id}`,
+      io: req.io,
+    });
+
+    res.json({ message: 'Prize pool successfully funded!', tournament, wallet });
+  } catch (error) {
+    console.error('Error funding prize pool:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createOrder,
   verifyPayment,
@@ -541,4 +624,5 @@ module.exports = {
   payWithWallet,
   initiateRazorpayWithdrawal,
   quickTopUpWallet,
+  fundTournamentPrizePool,
 };
