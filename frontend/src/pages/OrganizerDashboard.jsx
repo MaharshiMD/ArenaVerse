@@ -44,6 +44,7 @@ const OrganizerDashboard = () => {
   const [entryFee, setEntryFee] = useState('');
   const [prizePool, setPrizePool] = useState('');
   const [prizeDistribution, setPrizeDistribution] = useState([{ position: 1, amount: '' }]);
+  const [mvpPrize, setMvpPrize] = useState('');
   const [rules, setRules] = useState('');
   const [maxTeams, setMaxTeams] = useState('16');
   const [type, setType] = useState('team'); // 'solo', 'duo', or 'team'
@@ -110,7 +111,7 @@ const OrganizerDashboard = () => {
     setFormError('');
     setFormSuccess('');
 
-    const totalDistributed = prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+    const totalDistributed = prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0) + (Number(mvpPrize) || 0);
     const parsedPrizePool = Number(prizePool) || 0;
 
     if (totalDistributed > parsedPrizePool) {
@@ -189,6 +190,7 @@ const OrganizerDashboard = () => {
           entryFee: Number(entryFee),
           prizePool: parsedPrizePool,
           prizeDistribution: prizeDistribution.map(p => ({ position: p.position, amount: Number(p.amount) || 0 })),
+          mvpPrize: Number(mvpPrize) || 0,
           rules: rules.trim(),
           maxTeams: Number(maxTeams),
           type,
@@ -210,6 +212,7 @@ const OrganizerDashboard = () => {
       setEntryFee('');
       setPrizePool('');
       setPrizeDistribution([{ position: 1, amount: '' }]);
+      setMvpPrize('');
       setRules('');
       setMaxTeams('16');
       setMinTeamMembers('');
@@ -611,19 +614,35 @@ const OrganizerDashboard = () => {
                     <PlusCircle size={14} style={{ marginRight: '6px' }} /> Add Position
                   </button>
 
+                  <div className="mt-4" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
+                      <span style={{ fontWeight: 'bold' }}>MVP:</span>
+                      <span style={{ fontSize: '12px', color: '#94a3b8' }}>Bonus</span>
+                    </div>
+                    <input 
+                      type="number" 
+                      min="0"
+                      className="form-control" 
+                      placeholder="MVP Amount (₹)" 
+                      value={mvpPrize} 
+                      onChange={e => setMvpPrize(e.target.value)} 
+                      style={{ flex: 1 }}
+                    />
+                  </div>
+
                   <div className="mt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-                      <span>Distributed: ₹{prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)}</span>
-                      <span style={{ color: (Number(prizePool) - prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)) < 0 ? '#f87171' : '#94a3b8' }}>
-                        Remaining: ₹{Number(prizePool) - prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)}
+                      <span>Distributed: ₹{prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0) + (Number(mvpPrize) || 0)}</span>
+                      <span style={{ color: (Number(prizePool) - (prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0) + (Number(mvpPrize) || 0))) < 0 ? '#f87171' : '#94a3b8' }}>
+                        Remaining: ₹{Number(prizePool) - (prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0) + (Number(mvpPrize) || 0))}
                       </span>
                     </div>
-                    {(Number(prizePool) - prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)) < 0 && (
+                    {(Number(prizePool) - (prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0) + (Number(mvpPrize) || 0))) < 0 && (
                       <div style={{ color: '#f87171', fontSize: '13px', marginTop: '5px' }}>
-                        ✕ Prize distribution exceeds the total prize pool.
+                        ✕ Prize distribution and MVP prize exceed the total prize pool.
                       </div>
                     )}
-                    {(Number(prizePool) - prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)) >= 0 && (
+                    {(Number(prizePool) - (prizeDistribution.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0) + (Number(mvpPrize) || 0))) >= 0 && (
                       <div style={{ color: '#4ade80', fontSize: '13px', marginTop: '5px' }}>
                         ✓ Prize distribution is valid.
                       </div>

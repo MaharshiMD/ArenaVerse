@@ -39,6 +39,11 @@ const TournamentSchema = new mongoose.Schema(
         amount: { type: Number, required: true, min: 0 },
       }
     ],
+    mvpPrize: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     prizePoolStatus: {
       type: String,
       enum: ['PENDING_FUNDING', 'FUNDED', 'PRIZES_PAID', 'REFUNDED'],

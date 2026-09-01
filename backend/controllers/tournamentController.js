@@ -15,7 +15,7 @@ const {
 // @route   POST /api/tournaments
 // @access  Private (Organizer/Admin only)
 const createTournament = async (req, res) => {
-  const { name, game, banner, startDate, entryFee, prizePool, prizeDistribution, rules, maxTeams, type, minTeamMembers, maxTeamMembers } = req.body;
+  const { name, game, banner, startDate, entryFee, prizePool, prizeDistribution, mvpPrize, rules, maxTeams, type, minTeamMembers, maxTeamMembers } = req.body;
 
   try {
     const tournamentType = type || 'team';
@@ -31,11 +31,12 @@ const createTournament = async (req, res) => {
     }
 
     const calculatedPrizePool = Number(prizePool) || 0;
+    const calculatedMvpPrize = Number(mvpPrize) || 0;
     
     // Validate prize distribution
     let validPrizeDistribution = [];
+    let sum = 0;
     if (prizeDistribution && Array.isArray(prizeDistribution) && calculatedPrizePool > 0) {
-      let sum = 0;
       const positions = new Set();
       for (const pd of prizeDistribution) {
         if (!pd.position || pd.amount == null || pd.amount < 0) {
@@ -48,9 +49,10 @@ const createTournament = async (req, res) => {
         sum += pd.amount;
         validPrizeDistribution.push({ position: pd.position, amount: pd.amount });
       }
-      if (sum > calculatedPrizePool) {
-        return res.status(400).json({ message: 'Prize distribution cannot exceed the total prize pool' });
-      }
+    }
+
+    if ((sum + calculatedMvpPrize) > calculatedPrizePool) {
+      return res.status(400).json({ message: 'Prize distribution and MVP prize cannot exceed the total prize pool' });
     }
 
     const tournament = await Tournament.create({
@@ -61,6 +63,7 @@ const createTournament = async (req, res) => {
       entryFee: Number(entryFee) || 0,
       prizePool: calculatedPrizePool,
       prizeDistribution: validPrizeDistribution,
+      mvpPrize: calculatedMvpPrize,
       rules,
       maxTeams: Number(maxTeams) || 16,
       type: tournamentType,
@@ -124,18 +127,23 @@ const editTournament = async (req, res) => {
     if (tournament.prizePoolStatus === 'FUNDED') {
       if (
         (req.body.prizePool !== undefined && req.body.prizePool !== tournament.prizePool) ||
-        (req.body.prizeDistribution !== undefined)
+        (req.body.prizeDistribution !== undefined) ||
+        (req.body.mvpPrize !== undefined && req.body.mvpPrize !== tournament.mvpPrize)
       ) {
-        return res.status(400).json({ message: 'Prize pool and distribution cannot be modified after funding is secured.' });
+        return res.status(400).json({ message: 'Prize pool, distribution, and MVP prize cannot be modified after funding is secured.' });
       }
     } else {
       const updatedPrizePool = req.body.prizePool !== undefined ? Number(req.body.prizePool) : tournament.prizePool;
       tournament.prizePool = updatedPrizePool;
+      
+      const updatedMvpPrize = req.body.mvpPrize !== undefined ? Number(req.body.mvpPrize) : (tournament.mvpPrize || 0);
+      tournament.mvpPrize = updatedMvpPrize;
 
-      if (req.body.prizeDistribution !== undefined) {
-        let validPrizeDistribution = [];
-        if (Array.isArray(req.body.prizeDistribution) && updatedPrizePool > 0) {
-          let sum = 0;
+      if (req.body.prizeDistribution !== undefined || req.body.mvpPrize !== undefined) {
+        let validPrizeDistribution = req.body.prizeDistribution !== undefined ? [] : tournament.prizeDistribution;
+        let sum = 0;
+        
+        if (req.body.prizeDistribution !== undefined && Array.isArray(req.body.prizeDistribution) && updatedPrizePool > 0) {
           const positions = new Set();
           for (const pd of req.body.prizeDistribution) {
             if (!pd.position || pd.amount == null || pd.amount < 0) {
@@ -148,11 +156,17 @@ const editTournament = async (req, res) => {
             sum += pd.amount;
             validPrizeDistribution.push({ position: pd.position, amount: pd.amount });
           }
-          if (sum > updatedPrizePool) {
-            return res.status(400).json({ message: 'Prize distribution cannot exceed the total prize pool' });
-          }
+        } else if (req.body.prizeDistribution === undefined) {
+            sum = tournament.prizeDistribution.reduce((acc, curr) => acc + curr.amount, 0);
         }
-        tournament.prizeDistribution = validPrizeDistribution;
+
+        if ((sum + updatedMvpPrize) > updatedPrizePool) {
+          return res.status(400).json({ message: 'Prize distribution and MVP prize cannot exceed the total prize pool' });
+        }
+        
+        if (req.body.prizeDistribution !== undefined) {
+            tournament.prizeDistribution = validPrizeDistribution;
+        }
       }
     }
 
