@@ -549,7 +549,23 @@ const OrganizerDashboard = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {prizeDistribution.map((p, index) => (
                     <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <span style={{ minWidth: '80px', fontWeight: 'bold' }}>{p.position}{p.position === 1 ? 'st' : p.position === 2 ? 'nd' : p.position === 3 ? 'rd' : 'th'} Place</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
+                        <span style={{ fontWeight: 'bold' }}>Pos:</span>
+                        <input
+                          type="number"
+                          min="1"
+                          className="form-control"
+                          placeholder="Rank"
+                          value={p.position}
+                          onChange={e => {
+                            const updated = [...prizeDistribution];
+                            updated[index].position = e.target.value === '' ? '' : Number(e.target.value);
+                            setPrizeDistribution(updated);
+                          }}
+                          style={{ width: '80px', padding: '8px' }}
+                          required
+                        />
+                      </div>
                       <input 
                         type="number" 
                         min="0"
@@ -568,7 +584,7 @@ const OrganizerDashboard = () => {
                         <button 
                           type="button" 
                           onClick={() => {
-                            const updated = prizeDistribution.filter((_, i) => i !== index).map((item, i) => ({ ...item, position: i + 1 }));
+                            const updated = prizeDistribution.filter((_, i) => i !== index);
                             setPrizeDistribution(updated);
                           }}
                           style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer' }}
@@ -583,7 +599,10 @@ const OrganizerDashboard = () => {
                 <button 
                   type="button" 
                   className="btn btn-secondary btn-sm mt-3" 
-                  onClick={() => setPrizeDistribution([...prizeDistribution, { position: prizeDistribution.length + 1, amount: '' }])}
+                  onClick={() => {
+                    const maxPos = prizeDistribution.reduce((max, p) => Math.max(max, Number(p.position) || 0), 0);
+                    setPrizeDistribution([...prizeDistribution, { position: maxPos + 1, amount: '' }]);
+                  }}
                 >
                   <PlusCircle size={14} style={{ marginRight: '6px' }} /> Add Position
                 </button>
