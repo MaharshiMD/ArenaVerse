@@ -286,6 +286,7 @@ const AdminDashboard = () => {
                         className="form-control form-control-sm text-xs"
                         value={u.role}
                         onChange={(e) => handleRoleChange(u._id, e.target.value)}
+                        style={{ minWidth: '130px' }}
                       >
                         <option value="player">Player</option>
                         <option value="organizer">Organizer</option>
