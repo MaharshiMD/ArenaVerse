@@ -21,8 +21,8 @@ const getLeaderboard = async (req, res) => {
       dateFilter = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Find all users (players/competitors)
-    const players = await User.find({}).select('username profile role');
+    // Find all users (players/competitors), excluding admins and organizers
+    const players = await User.find({ role: { $nin: ['admin', 'organizer'] } }).select('username profile role');
 
     // Fetch all teams for team membership lookups
     const teams = await Team.find({}).select('name members');

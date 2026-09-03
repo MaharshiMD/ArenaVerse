@@ -334,27 +334,39 @@ const getHallOfFame = async (req, res) => {
   try {
     const [topEarners, champions, topTeams] = await Promise.all([
       TournamentResult.find({ prizeWon: { $gt: 0 } })
-        .populate('player', 'username profile.avatar profile.equippedFrame profile.equippedTitle profile.equippedBadge')
+        .populate({
+          path: 'player',
+          select: 'username profile.avatar profile.equippedFrame profile.equippedTitle profile.equippedBadge',
+          match: { role: { $nin: ['admin', 'organizer'] } }
+        })
         .sort({ prizeWon: -1 })
-        .limit(10)
+        .limit(50)
         .lean(),
       TournamentResult.find({ placement: 1 })
-        .populate('player', 'username profile.avatar profile.equippedFrame profile.equippedTitle profile.equippedBadge')
+        .populate({
+          path: 'player',
+          select: 'username profile.avatar profile.equippedFrame profile.equippedTitle profile.equippedBadge',
+          match: { role: { $nin: ['admin', 'organizer'] } }
+        })
         .populate('tournament', 'name game bannerImage startDate')
         .sort({ createdAt: -1 })
-        .limit(10)
+        .limit(50)
         .lean(),
       Team.find()
-        .populate('captain', 'username profile.avatar profile.equippedFrame profile.equippedTitle')
+        .populate({
+          path: 'captain',
+          select: 'username profile.avatar profile.equippedFrame profile.equippedTitle',
+          match: { role: { $nin: ['admin', 'organizer'] } }
+        })
         .sort({ 'stats.wins': -1 })
-        .limit(10)
+        .limit(50)
         .lean(),
     ]);
 
     res.json({
-      topEarners,
-      champions,
-      topTeams,
+      topEarners: topEarners.filter(t => t.player).slice(0, 10),
+      champions: champions.filter(t => t.player).slice(0, 10),
+      topTeams: topTeams.filter(t => t.captain).slice(0, 10),
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
