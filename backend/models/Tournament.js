@@ -168,6 +168,47 @@ const TournamentSchema = new mongoose.Schema(
         },
       },
     ],
+    format: {
+      type: String,
+      enum: ['knockout', 'battle_royale'],
+      default: 'knockout',
+    },
+    brSettings: {
+      teamsPerGroup: {
+        type: Number,
+        default: 12,
+      },
+      matchesPerGroup: {
+        type: Number,
+        default: 6,
+      },
+      qualifiersPerGroup: {
+        type: Number,
+        default: 6,
+      },
+      scoringSystem: {
+        placementPoints: {
+          type: Map,
+          of: Number,
+          default: {
+            "1": 12, "2": 9, "3": 8, "4": 7, "5": 6, "6": 5,
+            "7": 4, "8": 3, "9": 2, "10": 1, "11": 0, "12": 0
+          }
+        },
+        killPoints: {
+          type: Number,
+          default: 1,
+        },
+        booyahBonus: {
+          type: Number,
+          default: 0,
+        },
+        tieBreakers: {
+          type: [String],
+          default: ['total_points', 'booyahs', 'kill_points', 'placement_points']
+        }
+      }
+    }
   },
   { timestamps: true }
 );

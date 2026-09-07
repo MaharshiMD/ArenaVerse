@@ -15,6 +15,7 @@ const adminRoutes = require('./routes/adminRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const leaderboardRoutes = require('./routes/leaderboardRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const brTournamentRoutes = require('./routes/brTournamentRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -120,6 +121,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tournaments', tournamentRoutes);
+app.use('/api/br-tournaments', brTournamentRoutes);
 app.use('/api/certificates', certificateRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/matches', matchRoutes);
