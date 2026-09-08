@@ -1,42 +1,25 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-// Configure Nodemailer Transporter
-const createTransporter = async () => {
-  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT || 587,
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-      family: 4 // strictly force IPv4
-    });
-  }
-
-  // Fallback to test account or stream transport for development
-  return nodemailer.createTransport({
-    jsonTransport: true,
-  });
-};
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmail = async ({ to, subject, html }) => {
   try {
-    const transporter = await createTransporter();
-    const mailOptions = {
-      from: `"ArenaVerse Esports" <${process.env.SMTP_USER || 'no-reply@arenaverse.com'}>`,
+    // Resend requires a verified domain to send FROM, otherwise we use the testing email 'onboarding@resend.dev'
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'ArenaVerse Esports <onboarding@resend.dev>';
+    
+    const data = await resend.emails.send({
+      from: fromEmail,
       to,
       subject,
       html,
-    };
+    });
+    
+    if (data.error) {
+      throw new Error(data.error.message);
+    }
 
-    const info = await transporter.sendMail(mailOptions);
     console.log(`[EMAIL DISPATCH] Subject: "${subject}" -> To: ${to}`);
-    return info;
+    return data;
   } catch (error) {
     console.error(`[EMAIL ERROR] Failed to send email to ${to}:`, error.message);
     return null;
