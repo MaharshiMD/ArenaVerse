@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const brTournamentController = require('../controllers/brTournamentController');
-const { protect, restrictTo } = require('../middleware/authMiddleware');
+const { protect, authorize } = require('../middleware/auth');
 
 // Group generation for a tournament
 router.post(
   '/:tournamentId/groups',
   protect,
-  restrictTo('admin', 'organizer'),
+  authorize('admin', 'organizer'),
   brTournamentController.generateGroups
 );
 
@@ -15,7 +15,7 @@ router.post(
 router.post(
   '/stages/:stageId/matches',
   protect,
-  restrictTo('admin', 'organizer'),
+  authorize('admin', 'organizer'),
   brTournamentController.generateMatchSchedule
 );
 
@@ -23,7 +23,7 @@ router.post(
 router.post(
   '/matches/:matchId/results',
   protect,
-  restrictTo('admin', 'organizer', 'referee'),
+  authorize('admin', 'organizer', 'referee'),
   brTournamentController.submitMatchResult
 );
 
@@ -37,7 +37,7 @@ router.get(
 router.post(
   '/stages/:stageId/qualify',
   protect,
-  restrictTo('admin', 'organizer'),
+  authorize('admin', 'organizer'),
   brTournamentController.qualifyTeams
 );
 
