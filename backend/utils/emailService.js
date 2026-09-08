@@ -1,38 +1,36 @@
-const nodemailer = require('nodemailer');
-
-const createTransporter = () => {
-  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      // Keep IPv4 enforcement for stability if possible, but service: 'gmail' handles standard Gmail connection params automatically
-      family: 4 
-    });
-  }
-
-  // Fallback to test account or stream transport for development if missing credentials
-  return nodemailer.createTransport({
-    jsonTransport: true,
-  });
-};
-
 const sendEmail = async ({ to, subject, html }) => {
   try {
-    const transporter = createTransporter();
-    
-    const mailOptions = {
-      from: `"ArenaVerse Esports" <${process.env.EMAIL_USER || 'no-reply@arenaverse.com'}>`,
-      to,
-      subject,
-      html,
-    };
+    if (!process.env.BREVO_API_KEY) {
+      console.log(`[DEV MODE - BREVO_API_KEY MISSING] Sending email suppressed. Subject: "${subject}" -> To: ${to}`);
+      return { messageId: 'dev_mode_suppressed' };
+    }
 
-    const info = await transporter.sendMail(mailOptions);
+    const senderEmail = process.env.EMAIL_FROM || 'no-reply@arenaverse.com';
+    const senderName = 'ArenaVerse Esports';
+
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'api-key': process.env.BREVO_API_KEY
+      },
+      body: JSON.stringify({
+        sender: { email: senderEmail, name: senderName },
+        to: [{ email: to }],
+        subject: subject,
+        htmlContent: html
+      })
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to send via Brevo API');
+    }
+
     console.log(`[EMAIL DISPATCH] Subject: "${subject}" -> To: ${to}`);
-    return info;
+    return data;
   } catch (error) {
     console.error(`[EMAIL ERROR] Failed to send email to ${to}:`, error.message);
     return null;
@@ -150,12 +148,12 @@ const sendPasswordResetEmail = async (userEmail, resetToken) => {
 
 // 7. 2FA Email OTP Verification Email
 const send2FAOTPEmail = async (userEmail, otpCode) => {
-  if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+  if (!process.env.BREVO_API_KEY) {
     console.log(`\n==================================================`);
     console.log(`🛡️ [ARENAVERSE 2FA DEV OTP CODE]`);
     console.log(`To: ${userEmail}`);
     console.log(`Verification Code:  >>>> ${otpCode} <<<<`);
-    console.log(`(Set SMTP_HOST, SMTP_USER, and SMTP_PASS in backend/.env to send real email to your inbox)`);
+    console.log(`(Set BREVO_API_KEY in backend/.env to send real email to your inbox)`);
     console.log(`==================================================\n`);
   }
 
