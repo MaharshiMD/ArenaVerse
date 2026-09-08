@@ -1,25 +1,38 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const createTransporter = () => {
+  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+      // Keep IPv4 enforcement for stability if possible, but service: 'gmail' handles standard Gmail connection params automatically
+      family: 4 
+    });
+  }
+
+  // Fallback to test account or stream transport for development if missing credentials
+  return nodemailer.createTransport({
+    jsonTransport: true,
+  });
+};
 
 const sendEmail = async ({ to, subject, html }) => {
   try {
-    // Resend requires a verified domain to send FROM, otherwise we use the testing email 'onboarding@resend.dev'
-    const fromEmail = process.env.RESEND_FROM_EMAIL || 'ArenaVerse Esports <onboarding@resend.dev>';
+    const transporter = createTransporter();
     
-    const data = await resend.emails.send({
-      from: fromEmail,
+    const mailOptions = {
+      from: `"ArenaVerse Esports" <${process.env.EMAIL_USER || 'no-reply@arenaverse.com'}>`,
       to,
       subject,
       html,
-    });
-    
-    if (data.error) {
-      throw new Error(data.error.message);
-    }
+    };
 
+    const info = await transporter.sendMail(mailOptions);
     console.log(`[EMAIL DISPATCH] Subject: "${subject}" -> To: ${to}`);
-    return data;
+    return info;
   } catch (error) {
     console.error(`[EMAIL ERROR] Failed to send email to ${to}:`, error.message);
     return null;
