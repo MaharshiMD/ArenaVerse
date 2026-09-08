@@ -14,6 +14,7 @@ const createTransporter = async () => {
       connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 15000,
+      family: 4 // strictly force IPv4
     });
   }
 
