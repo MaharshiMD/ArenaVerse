@@ -1,8 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Trophy, Shield, Users, Zap, ChevronRight, Award } from 'lucide-react';
-import AdBanner from '../components/AdBanner';
-import NativeBanner from '../components/NativeBanner';
 import './Home.css';
 
 const POPULAR_GAMES = [
@@ -97,9 +95,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Ad Banner 728x90 */}
-      <AdBanner dataKey="0129d775b40a23a67861f270b6f5fc73" width={728} height={90} />
-
       {/* How It Works Section */}
       <section className="features-section mt-4">
         <div className="text-center mb-4">
@@ -128,12 +123,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Ad Banner 300x250 */}
-      <AdBanner dataKey="63656e2c28a20cf5e01d7bb0f59dd6f0" width={300} height={250} />
-
-      {/* Native Banner */}
-      <NativeBanner />
-
       {/* Generic Tournaments Teaser */}
       <section className="popular-games-section mt-5">
         <div className="text-center mb-4">
@@ -154,9 +143,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Ad Banner 468x60 */}
-      <AdBanner dataKey="e322456e0fd142f21a75f1c05f3a2e1d" width={468} height={60} />
-
       {/* Login & Register CTAs */}
       <section className="cta-section mt-5 mb-4 text-center">
         <div className="glass-panel p-5" style={{ background: 'linear-gradient(135deg, rgba(255, 75, 43, 0.1), rgba(139, 92, 246, 0.1))', border: '1px solid rgba(255, 255, 255, 0.15)', borderRadius: '24px' }}>
@@ -176,22 +162,6 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Smart Links */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '30px' }}>
-        <a href="https://eatingjudgelos.com/rztzkxhbwp?key=7398f56e0f4e8fd7d26f1f13016e140f" target="_blank" rel="noopener noreferrer" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '14px' }}>
-          Sponsored Content
-        </a>
-        <a href="https://eatingjudgelos.com/bt41fdgz?key=d8fe6d9bbb062e9616b9de876a35eee3" target="_blank" rel="noopener noreferrer" className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '14px' }}>
-          Partner Offers
-        </a>
-      </div>
-
-      {/* Ad Banners: 160x600, 160x300, 320x50 */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px', marginBottom: '40px' }}>
-        <AdBanner dataKey="353994c59343f7242e03043afa677d78" width={160} height={600} />
-        <AdBanner dataKey="6c5988e2a6b20e86159e65bb33386a7d" width={160} height={300} />
-        <AdBanner dataKey="9e98b575b535854b381ee2330d527e5a" width={320} height={50} />
-      </div>
     </div>
   );
 };
