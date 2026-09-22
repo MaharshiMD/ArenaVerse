@@ -193,13 +193,56 @@ const updateMatchScore = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to record scores for this match' });
     }
 
-    if (scoreA === scoreB) {
+    const numScoreA = Number(scoreA);
+    const numScoreB = Number(scoreB);
+
+    if (isNaN(numScoreA) || isNaN(numScoreB) || numScoreA < 0 || numScoreB < 0) {
+      return res.status(400).json({ message: 'Valid non-negative scores are required' });
+    }
+
+    const matchFormat = match.matchFormat || tournament.clashSquadSettings?.matchFormat;
+    let targetWins = null;
+    if (matchFormat === 'BO1') targetWins = 1;
+    else if (matchFormat === 'BO3') targetWins = 2;
+    else if (matchFormat === 'BO5') targetWins = 3;
+
+    const requestedStatus = req.body.status || 'completed';
+
+    // If organizer is marking the match as ongoing / live with a partial score
+    if (requestedStatus === 'live') {
+      match.scoreA = numScoreA;
+      match.scoreB = numScoreB;
+      match.status = 'live';
+      await match.save();
+
+      if (req.io) {
+        req.io.to(`tournament_${tournament._id.toString()}`).emit('match_updated', {
+          matchId: match._id,
+          status: 'live',
+          scoreA: match.scoreA,
+          scoreB: match.scoreB,
+        });
+      }
+      return res.json({ message: 'Match is now live', match });
+    }
+
+    if (numScoreA === numScoreB) {
       return res.status(400).json({ message: 'Matches in brackets cannot end in a draw' });
     }
 
+    if (targetWins !== null) {
+      const maxScore = Math.max(numScoreA, numScoreB);
+      const minScore = Math.min(numScoreA, numScoreB);
+      if (maxScore !== targetWins || minScore >= targetWins) {
+        return res.status(400).json({
+          message: `Invalid score for ${matchFormat}. First team to reach ${targetWins} win(s) wins the match (e.g. ${targetWins}-0 or ${targetWins}-${targetWins - 1}).`,
+        });
+      }
+    }
+
     // Set score and winner
-    match.scoreA = Number(scoreA);
-    match.scoreB = Number(scoreB);
+    match.scoreA = numScoreA;
+    match.scoreB = numScoreB;
     const winnerId = match.scoreA > match.scoreB ? match.teamA.id : match.teamB.id;
     const winnerName = match.scoreA > match.scoreB ? match.teamA.name : match.teamB.name;
     const loserId = match.scoreA > match.scoreB ? match.teamB.id : match.teamA.id;

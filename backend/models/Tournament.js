@@ -168,12 +168,32 @@ const TournamentSchema = new mongoose.Schema(
         },
       },
     ],
+    tournamentMode: {
+      type: String,
+      enum: ['battle_royale', 'clash_squad'],
+      default: null,
+    },
     format: {
       type: String,
       enum: ['knockout', 'battle_royale'],
       default: 'knockout',
     },
+    clashSquadSettings: {
+      matchFormat: {
+        type: String,
+        enum: ['BO1', 'BO3', 'BO5'],
+        default: 'BO3',
+      },
+    },
     brSettings: {
+      numberOfTeams: {
+        type: Number,
+        default: 12,
+      },
+      numberOfMatches: {
+        type: Number,
+        default: 6,
+      },
       teamsPerGroup: {
         type: Number,
         default: 12,
@@ -205,7 +225,7 @@ const TournamentSchema = new mongoose.Schema(
         },
         tieBreakers: {
           type: [String],
-          default: ['total_points', 'booyahs', 'kill_points', 'placement_points']
+          default: ['total_points', 'total_kills', 'better_placement', 'booyahs']
         }
       }
     }

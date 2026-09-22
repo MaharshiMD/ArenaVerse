@@ -4,6 +4,7 @@ const Match = require('../models/Match');
 const Team = require('../models/Team');
 const User = require('../models/User');
 const TournamentResult = require('../models/TournamentResult');
+const BRMatch = require('../models/BRMatch');
 const { createNotification } = require('../utils/notificationHelper');
 const { buildGameRegex } = require('../utils/gameUtils');
 const {
@@ -51,8 +52,53 @@ const createTournament = async (req, res) => {
       }
     }
 
-    if ((sum + calculatedMvpPrize) > calculatedPrizePool) {
-      return res.status(400).json({ message: 'Prize distribution and MVP prize cannot exceed the total prize pool' });
+    const isFreeFire = game && (
+      game.trim().toLowerCase() === 'free fire' ||
+      game.trim().toLowerCase() === 'free fire max' ||
+      game.trim().toLowerCase().startsWith('free fire')
+    );
+
+    let finalTournamentMode = null;
+    let finalFormat = 'knockout';
+    let finalBrSettings = undefined;
+    let finalClashSquadSettings = undefined;
+    let finalMaxTeams = Number(maxTeams) || 16;
+
+    if (isFreeFire && req.body.tournamentMode) {
+      finalTournamentMode = req.body.tournamentMode;
+      if (finalTournamentMode === 'battle_royale') {
+        finalFormat = 'battle_royale';
+        tournamentType = 'team';
+        calculatedMin = 4;
+        calculatedMax = 4;
+        const brTeams = Number(req.body.brSettings?.numberOfTeams) || Number(maxTeams) || 12;
+        const brMatches = Number(req.body.brSettings?.numberOfMatches) || 6;
+        finalMaxTeams = brTeams;
+        finalBrSettings = {
+          numberOfTeams: brTeams,
+          numberOfMatches: brMatches,
+          teamsPerGroup: brTeams,
+          matchesPerGroup: brMatches,
+          qualifiersPerGroup: brTeams,
+          scoringSystem: {
+            placementPoints: req.body.brSettings?.scoringSystem?.placementPoints || {
+              "1": 12, "2": 9, "3": 8, "4": 7, "5": 6, "6": 5,
+              "7": 4, "8": 3, "9": 2, "10": 1, "11": 0, "12": 0
+            },
+            killPoints: req.body.brSettings?.scoringSystem?.killPoints != null ? Number(req.body.brSettings.scoringSystem.killPoints) : 1,
+            booyahBonus: Number(req.body.brSettings?.scoringSystem?.booyahBonus) || 0,
+            tieBreakers: ['total_points', 'total_kills', 'better_placement', 'booyahs']
+          }
+        };
+      } else if (finalTournamentMode === 'clash_squad') {
+        finalFormat = 'knockout';
+        tournamentType = 'team';
+        calculatedMin = 4;
+        calculatedMax = 4;
+        finalClashSquadSettings = {
+          matchFormat: req.body.clashSquadSettings?.matchFormat || 'BO3',
+        };
+      }
     }
 
     const tournament = await Tournament.create({
@@ -65,13 +111,17 @@ const createTournament = async (req, res) => {
       prizeDistribution: validPrizeDistribution,
       mvpPrize: calculatedMvpPrize,
       rules,
-      maxTeams: Number(maxTeams) || 16,
+      maxTeams: finalMaxTeams,
       type: tournamentType,
       minTeamMembers: calculatedMin,
       maxTeamMembers: calculatedMax,
       organizer: req.user._id,
       status: 'draft',
       prizePoolStatus: 'PENDING_FUNDING',
+      tournamentMode: finalTournamentMode,
+      format: finalFormat,
+      brSettings: finalBrSettings,
+      clashSquadSettings: finalClashSquadSettings,
     });
 
     if (req.body.autoSeedTeams || req.body.prepopulate) {
@@ -79,17 +129,31 @@ const createTournament = async (req, res) => {
         const users = await User.find().limit(8);
         tournament.registeredPlayers = users.map(u => u._id);
       } else {
-        let teams = await Team.find().limit(8);
-        if (teams.length < 4) {
-          const demoTeamData = [
-            { name: 'Alpha Squad', tag: 'ALPHA', logo: '', leader: req.user._id, members: [req.user._id] },
-            { name: 'Cyber Ninjas', tag: 'NINJA', logo: '', leader: req.user._id, members: [req.user._id] },
-            { name: 'Apex Predators', tag: 'APEX', logo: '', leader: req.user._id, members: [req.user._id] },
-            { name: 'Vortex Esports', tag: 'VRTX', logo: '', leader: req.user._id, members: [req.user._id] },
+        const neededTeamsCount = finalTournamentMode === 'battle_royale' ? (finalBrSettings?.numberOfTeams || 12) : 8;
+        let teams = await Team.find().limit(neededTeamsCount);
+        if (teams.length < neededTeamsCount) {
+          const demoTeamNames = [
+            'Total Gaming Esports', 'GodLike Esports', 'Team Elite', 'Orangutan Elite',
+            'Chemin Esports', 'Nigma Galaxy', 'TSM FTX', 'Enigma Gaming',
+            'Headhunters', 'Desi Gamers Esports', 'Revenant Esports', 'Blind Esports',
+            'Alpha Squad', 'Cyber Ninjas', 'Apex Predators', 'Vortex Esports'
           ];
-          teams = await Team.insertMany(demoTeamData);
+          const newTeamsToCreate = [];
+          for (let i = teams.length; i < neededTeamsCount; i++) {
+            newTeamsToCreate.push({
+              name: demoTeamNames[i % demoTeamNames.length] + (i >= demoTeamNames.length ? ` ${i + 1}` : ''),
+              tag: `FF${i + 1}`,
+              logo: '',
+              leader: req.user._id,
+              members: [req.user._id],
+            });
+          }
+          if (newTeamsToCreate.length > 0) {
+            const created = await Team.insertMany(newTeamsToCreate);
+            teams = [...teams, ...created];
+          }
         }
-        tournament.registeredTeams = teams.map(t => t._id);
+        tournament.registeredTeams = teams.slice(0, neededTeamsCount).map(t => t._id);
       }
       await tournament.save();
     }
@@ -359,11 +423,19 @@ const getTournamentById = async (req, res) => {
       .populate('player', 'username email profile')
       .sort({ placement: 1 });
 
+    let brMatches = [];
+    if (tournament.tournamentMode === 'battle_royale' || tournament.format === 'battle_royale') {
+      brMatches = await BRMatch.find({ tournament: tournament._id })
+        .populate('results.teamId', 'name logo tag')
+        .sort({ matchNumber: 1 });
+    }
+
     res.json({
       tournament,
       bracket,
       matches,
       results,
+      brMatches,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -532,6 +604,75 @@ const publishTournament = async (req, res) => {
       return res.status(400).json({ message: 'You must securely fund the prize pool before publishing the tournament.' });
     }
 
+    // MODE 1: BATTLE ROYALE MODE
+    if (tournament.tournamentMode === 'battle_royale' || tournament.format === 'battle_royale') {
+      const neededTeams = tournament.brSettings?.numberOfTeams || 12;
+      let registeredTeamIds = [...(tournament.registeredTeams || [])];
+
+      if (registeredTeamIds.length < 2) {
+        if (req.body.autoSeed || req.body.force) {
+          const demoTeamNames = [
+            'Total Gaming Esports', 'GodLike Esports', 'Team Elite', 'Orangutan Elite',
+            'Chemin Esports', 'Nigma Galaxy', 'TSM FTX', 'Enigma Gaming',
+            'Headhunters', 'Desi Gamers Esports', 'Revenant Esports', 'Blind Esports'
+          ];
+          const demoTeams = [];
+          for (let i = 0; i < neededTeams; i++) {
+            demoTeams.push({
+              name: demoTeamNames[i % demoTeamNames.length] + (i >= demoTeamNames.length ? ` ${i + 1}` : ''),
+              tag: `FF${i + 1}`,
+              logo: '',
+              leader: req.user._id,
+              members: [req.user._id],
+            });
+          }
+          const created = await Team.insertMany(demoTeams);
+          tournament.registeredTeams = created.map(t => t._id);
+          await tournament.save();
+        }
+      }
+
+      const teams = await Team.find({ _id: { $in: tournament.registeredTeams } });
+      if (teams.length < 2) {
+        return res.status(400).json({
+          message: 'Cannot start Battle Royale tournament. Minimum 2 teams required (12 recommended). Click "Auto-Seed & Publish" to populate demo competitors.',
+        });
+      }
+
+      // Clean up any existing BRMatch for this tournament
+      await BRMatch.deleteMany({ tournament: tournament._id });
+
+      const matchesCount = tournament.brSettings?.numberOfMatches || 6;
+      const ffMaps = ['Bermuda', 'Purgatory', 'Kalahari', 'Alpine', 'NexTerra', 'Bermuda Remastered'];
+      const brMatches = [];
+
+      for (let i = 1; i <= matchesCount; i++) {
+        brMatches.push({
+          tournament: tournament._id,
+          groupName: 'Main Lobby',
+          matchNumber: i,
+          mapName: ffMaps[(i - 1) % ffMaps.length],
+          status: 'scheduled',
+          results: teams.map(t => ({
+            teamId: t._id,
+            teamName: t.name,
+            placement: 0,
+            kills: 0,
+            placementPoints: 0,
+            killPoints: 0,
+            totalPoints: 0,
+          })),
+        });
+      }
+
+      await BRMatch.insertMany(brMatches);
+      tournament.status = 'ongoing';
+      await tournament.save();
+
+      return res.json({ message: 'Battle Royale tournament published and matches scheduled', tournament });
+    }
+
+    // MODE 2: CLASH SQUAD OR STANDARD KNOCKOUT
     let participants = tournament.type === 'solo' 
       ? await User.find({ _id: { $in: tournament.registeredPlayers } })
       : await Team.find({ _id: { $in: tournament.registeredTeams } });
@@ -545,11 +686,21 @@ const publishTournament = async (req, res) => {
           await tournament.save();
           participants = await User.find({ _id: { $in: tournament.registeredPlayers } });
         } else {
-          const demoTeams = await Team.find().limit(4);
-          const demoTeamIds = demoTeams.map(t => t._id);
-          tournament.registeredTeams = Array.from(new Set([...tournament.registeredTeams, ...demoTeamIds]));
+          const defaultCount = tournament.tournamentMode === 'clash_squad' ? 8 : 4;
+          const demoTeams = [];
+          for (let i = 0; i < defaultCount; i++) {
+            demoTeams.push({
+              name: `Squad ${String.fromCharCode(65 + i)}`,
+              tag: `SQ${i + 1}`,
+              logo: '',
+              leader: req.user._id,
+              members: [req.user._id],
+            });
+          }
+          const created = await Team.insertMany(demoTeams);
+          tournament.registeredTeams = created.map(t => t._id);
           await tournament.save();
-          participants = await Team.find({ _id: { $in: tournament.registeredTeams } });
+          participants = created;
         }
       }
 
@@ -571,6 +722,9 @@ const publishTournament = async (req, res) => {
     } else {
       await generateSingleElimination(tournament._id, participants, modelName);
     }
+
+    const clashFormat = tournament.clashSquadSettings?.matchFormat || 'BO3';
+    await Match.updateMany({ tournament: tournament._id }, { matchFormat: clashFormat });
 
     tournament.status = 'ongoing';
     await tournament.save();
@@ -855,6 +1009,388 @@ const createPrejoinedDraftTournament = async (req, res) => {
   }
 };
 
+// Helper function for Battle Royale leaderboard calculation
+function calculateBRLeaderboard(matches, tournament) {
+  const teamStats = {};
+
+  if (tournament && Array.isArray(tournament.registeredTeams)) {
+    tournament.registeredTeams.forEach(t => {
+      const id = t._id ? t._id.toString() : t.toString();
+      const name = t.name || 'Team';
+      teamStats[id] = {
+        teamId: id,
+        teamName: name,
+        logo: t.logo || '',
+        tag: t.tag || '',
+        matchBreakdown: {},
+        totalPoints: 0,
+        totalKills: 0,
+        placementPoints: 0,
+        killPoints: 0,
+        booyahs: 0,
+        placementsCount: {},
+      };
+    });
+  }
+
+  matches.forEach(m => {
+    const matchNum = m.matchNumber;
+    m.results.forEach(r => {
+      const teamIdStr = (r.teamId?._id || r.teamId)?.toString();
+      if (!teamIdStr) return;
+
+      if (!teamStats[teamIdStr]) {
+        teamStats[teamIdStr] = {
+          teamId: teamIdStr,
+          teamName: r.teamName || 'Team',
+          logo: '',
+          tag: '',
+          matchBreakdown: {},
+          totalPoints: 0,
+          totalKills: 0,
+          placementPoints: 0,
+          killPoints: 0,
+          booyahs: 0,
+          placementsCount: {},
+        };
+      }
+
+      if (r.teamName && teamStats[teamIdStr].teamName === 'Team') {
+        teamStats[teamIdStr].teamName = r.teamName;
+      }
+
+      teamStats[teamIdStr].matchBreakdown[matchNum] = {
+        placement: r.placement,
+        kills: r.kills,
+        placementPoints: r.placementPoints,
+        killPoints: r.killPoints,
+        totalPoints: r.totalPoints,
+      };
+
+      if (m.status === 'completed') {
+        teamStats[teamIdStr].totalPoints += (r.totalPoints || 0);
+        teamStats[teamIdStr].totalKills += (r.kills || 0);
+        teamStats[teamIdStr].placementPoints += (r.placementPoints || 0);
+        teamStats[teamIdStr].killPoints += (r.killPoints || 0);
+        if (r.placement === 1) {
+          teamStats[teamIdStr].booyahs += 1;
+        }
+        if (r.placement > 0) {
+          teamStats[teamIdStr].placementsCount[r.placement] = (teamStats[teamIdStr].placementsCount[r.placement] || 0) + 1;
+        }
+      }
+    });
+  });
+
+  const overall = Object.values(teamStats).sort((a, b) => {
+    if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+    if (b.totalKills !== a.totalKills) return b.totalKills - a.totalKills;
+    for (let p = 1; p <= 12; p++) {
+      const aCount = a.placementsCount[p] || 0;
+      const bCount = b.placementsCount[p] || 0;
+      if (bCount !== aCount) return bCount - aCount;
+    }
+    return b.placementPoints - a.placementPoints;
+  });
+
+  overall.forEach((team, idx) => {
+    team.rank = idx + 1;
+  });
+
+  return overall;
+}
+
+// @desc    Create/generate BR matches for a Battle Royale tournament
+// @route   POST /api/tournaments/:tournamentId/matches
+const createOrScheduleBRMatches = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+    if (tournament.organizer.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to configure matches for this tournament' });
+    }
+
+    const matchCount = Number(req.body.matchCount || req.body.numberOfMatches) || tournament.brSettings?.numberOfMatches || 6;
+    const teams = await Team.find({ _id: { $in: tournament.registeredTeams } });
+
+    await BRMatch.deleteMany({ tournament: tournament._id });
+
+    const ffMaps = ['Bermuda', 'Purgatory', 'Kalahari', 'Alpine', 'NexTerra', 'Bermuda Remastered'];
+    const brMatches = [];
+    for (let i = 1; i <= matchCount; i++) {
+      brMatches.push({
+        tournament: tournament._id,
+        groupName: 'Main Lobby',
+        matchNumber: i,
+        mapName: ffMaps[(i - 1) % ffMaps.length],
+        status: 'scheduled',
+        results: teams.map(t => ({
+          teamId: t._id,
+          teamName: t.name,
+          placement: 0,
+          kills: 0,
+          placementPoints: 0,
+          killPoints: 0,
+          totalPoints: 0,
+        })),
+      });
+    }
+
+    const createdMatches = await BRMatch.insertMany(brMatches);
+    tournament.brSettings = {
+      ...(tournament.brSettings || {}),
+      numberOfMatches: matchCount,
+    };
+    await tournament.save();
+
+    res.status(201).json({ message: 'Battle Royale matches scheduled successfully', matches: createdMatches });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Get all BR matches for a tournament
+// @route   GET /api/tournaments/:tournamentId/br-matches OR /matches
+const getBRTournamentMatches = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+
+    const matches = await BRMatch.find({ tournament: req.params.tournamentId })
+      .populate('results.teamId', 'name logo tag')
+      .sort({ matchNumber: 1 });
+
+    res.json({ matches });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Submit results for a Battle Royale match
+// @route   POST /api/tournaments/:tournamentId/matches/:matchId/results
+const submitBRMatchResult = async (req, res) => {
+  try {
+    const { tournamentId, matchId } = req.params;
+    const tournament = await Tournament.findById(tournamentId);
+    if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+
+    if (tournament.organizer.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to record scores for this tournament' });
+    }
+
+    const match = await BRMatch.findOne({ _id: matchId, tournament: tournamentId });
+    if (!match) return res.status(404).json({ message: 'BR Match not found' });
+
+    const teamResults = req.body.results || req.body.teamResults || [];
+    if (!Array.isArray(teamResults) || teamResults.length === 0) {
+      return res.status(400).json({ message: 'Team results array is required' });
+    }
+
+    const scoringSystem = tournament.brSettings?.scoringSystem || {};
+    const placementPointsObj = scoringSystem.placementPoints instanceof Map
+      ? Object.fromEntries(scoringSystem.placementPoints)
+      : (scoringSystem.placementPoints || {
+          "1": 12, "2": 9, "3": 8, "4": 7, "5": 6, "6": 5,
+          "7": 4, "8": 3, "9": 2, "10": 1, "11": 0, "12": 0
+        });
+
+    const killPointsUnit = scoringSystem.killPoints != null ? Number(scoringSystem.killPoints) : 1;
+    const booyahBonusUnit = Number(scoringSystem.booyahBonus) || 0;
+
+    const teams = await Team.find({ _id: { $in: teamResults.map(r => r.teamId) } });
+    const teamMap = {};
+    teams.forEach(t => { teamMap[t._id.toString()] = t.name; });
+
+    const updatedResults = teamResults.map(r => {
+      const placement = Number(r.placement) || 0;
+      const kills = Number(r.kills) || 0;
+      const placementPoints = placement > 0 && placementPointsObj[placement.toString()] !== undefined
+        ? Number(placementPointsObj[placement.toString()])
+        : 0;
+      const killPoints = kills * killPointsUnit;
+      const booyahBonus = placement === 1 ? booyahBonusUnit : 0;
+      const totalPoints = placementPoints + killPoints + booyahBonus;
+
+      const teamName = r.teamName || teamMap[r.teamId?.toString()] || 'Team';
+
+      return {
+        teamId: r.teamId,
+        teamName,
+        placement,
+        kills,
+        placementPoints,
+        killPoints,
+        totalPoints,
+      };
+    });
+
+    match.results = updatedResults;
+    match.status = 'completed';
+    await match.save();
+
+    const allMatches = await BRMatch.find({ tournament: tournamentId });
+    const allCompleted = allMatches.length > 0 && allMatches.every(m => m.status === 'completed');
+
+    if (allCompleted) {
+      const leaderboard = calculateBRLeaderboard(allMatches, tournament);
+      if (leaderboard.length > 0) {
+        tournament.status = 'completed';
+        tournament.winnerName = leaderboard[0]?.teamName || '';
+        tournament.runnerUpName = leaderboard[1]?.teamName || '';
+        tournament.resultsFinalizedAt = new Date();
+        await tournament.save();
+      }
+    }
+
+    if (req.io) {
+      req.io.to(`tournament_${tournamentId}`).emit('match_updated', {
+        matchId,
+        status: 'completed',
+        isBR: true,
+      });
+    }
+
+    res.json({ message: 'BR match results recorded successfully', match });
+  } catch (err) {
+    console.error('Error submitting BR match result:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Get leaderboard for a Battle Royale tournament
+// @route   GET /api/tournaments/:tournamentId/leaderboard
+const getBRTournamentLeaderboard = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId)
+      .populate('registeredTeams', 'name logo tag');
+    if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+
+    const matches = await BRMatch.find({ tournament: req.params.tournamentId })
+      .populate('results.teamId', 'name logo tag')
+      .sort({ matchNumber: 1 });
+
+    const overallLeaderboard = calculateBRLeaderboard(matches, tournament);
+
+    const matchLeaderboards = matches.map(m => {
+      const sortedResults = [...m.results]
+        .filter(r => r.placement > 0)
+        .sort((a, b) => a.placement - b.placement)
+        .map((r, idx) => ({
+          rank: idx + 1,
+          teamId: r.teamId?._id || r.teamId,
+          teamName: r.teamName || r.teamId?.name || 'Team',
+          logo: r.teamId?.logo || '',
+          placement: r.placement,
+          kills: r.kills,
+          placementPoints: r.placementPoints,
+          killPoints: r.killPoints,
+          totalPoints: r.totalPoints,
+        }));
+
+      return {
+        matchId: m._id,
+        matchNumber: m.matchNumber,
+        mapName: m.mapName,
+        status: m.status,
+        leaderboard: sortedResults,
+      };
+    });
+
+    res.json({
+      overallLeaderboard,
+      matchLeaderboards,
+      matches,
+      totalMatches: matches.length,
+      completedMatches: matches.filter(m => m.status === 'completed').length,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Generate bracket for Clash Squad
+// @route   POST /api/tournaments/:tournamentId/bracket/generate
+const generateClashSquadBracket = async (req, res) => {
+  try {
+    const tournament = await Tournament.findById(req.params.tournamentId);
+    if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+
+    if (tournament.organizer.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const participants = await Team.find({ _id: { $in: tournament.registeredTeams } });
+    if (participants.length < 2) {
+      return res.status(400).json({ message: 'At least 2 teams required to generate a Clash Squad bracket' });
+    }
+
+    await Match.deleteMany({ tournament: tournament._id });
+    await Bracket.deleteMany({ tournament: tournament._id });
+
+    const bracket = await generateSingleElimination(tournament._id, participants, 'Team');
+    const matchFormat = tournament.clashSquadSettings?.matchFormat || 'BO3';
+    await Match.updateMany({ tournament: tournament._id }, { matchFormat });
+
+    tournament.status = 'ongoing';
+    await tournament.save();
+
+    const matches = await Match.find({ tournament: tournament._id })
+      .populate('teamA.id', 'name logo')
+      .populate('teamB.id', 'name logo')
+      .sort({ round: 1, position: 1 });
+
+    res.json({ message: 'Clash Squad bracket generated successfully', bracket, matches });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Get bracket for Clash Squad
+// @route   GET /api/tournaments/:tournamentId/bracket
+const getClashSquadBracket = async (req, res) => {
+  try {
+    const bracket = await Bracket.findOne({ tournament: req.params.tournamentId });
+    const matches = await Match.find({ tournament: req.params.tournamentId })
+      .populate({
+        path: 'teamA.id',
+        populate: { path: 'members captain', select: 'username email profile' }
+      })
+      .populate({
+        path: 'teamB.id',
+        populate: { path: 'members captain', select: 'username email profile' }
+      })
+      .populate('mvp', 'username email profile')
+      .sort({ round: 1, position: 1 });
+
+    res.json({ bracket, matches });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// @desc    Get single match details for Clash Squad
+// @route   GET /api/tournaments/:tournamentId/matches/:matchId
+const getClashSquadMatch = async (req, res) => {
+  try {
+    const match = await Match.findOne({ _id: req.params.matchId, tournament: req.params.tournamentId })
+      .populate({
+        path: 'teamA.id',
+        populate: { path: 'members captain', select: 'username email profile' }
+      })
+      .populate({
+        path: 'teamB.id',
+        populate: { path: 'members captain', select: 'username email profile' }
+      })
+      .populate('mvp', 'username email profile');
+
+    if (!match) return res.status(404).json({ message: 'Match not found' });
+    res.json({ match });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   createTournament,
   editTournament,
@@ -868,4 +1404,11 @@ module.exports = {
   postAnnouncement,
   inviteTournamentEntrant,
   createPrejoinedDraftTournament,
+  createOrScheduleBRMatches,
+  getBRTournamentMatches,
+  submitBRMatchResult,
+  getBRTournamentLeaderboard,
+  generateClashSquadBracket,
+  getClashSquadBracket,
+  getClashSquadMatch,
 };

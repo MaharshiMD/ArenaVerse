@@ -28,6 +28,7 @@ const OrganizerDashboard = () => {
     'Rocket League',
     'EA Sports FC / FIFA',
     'Free Fire',
+    'Free Fire MAX',
     'Tekken 8',
     'Street Fighter 6',
     'Rainbow Six Siege',
@@ -53,6 +54,17 @@ const OrganizerDashboard = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+
+  // Free Fire Specific Mode States
+  const [ffMode, setFfMode] = useState('battle_royale'); // 'battle_royale' or 'clash_squad'
+  const [brMatchesCount, setBrMatchesCount] = useState('6');
+  const [customMatchesCount, setCustomMatchesCount] = useState('');
+  const [csMatchFormat, setCsMatchFormat] = useState('BO3'); // 'BO1', 'BO3', 'BO5'
+  const [brPlacementPoints, setBrPlacementPoints] = useState({
+    1: 12, 2: 9, 3: 8, 4: 7, 5: 6, 6: 5,
+    7: 4, 8: 3, 9: 2, 10: 1, 11: 0, 12: 0
+  });
+  const [brKillPoints, setBrKillPoints] = useState(1);
 
   // Publish bracket picker state
   const [activePublishId, setActivePublishId] = useState('');
@@ -175,6 +187,26 @@ const OrganizerDashboard = () => {
       return;
     }
 
+    const isFF = finalGame.toLowerCase().includes('free fire');
+    const actualMatchesCount = brMatchesCount === 'custom' ? (Number(customMatchesCount) || 6) : Number(brMatchesCount);
+
+    const ffPayload = isFF ? {
+      tournamentMode: ffMode,
+      brSettings: ffMode === 'battle_royale' ? {
+        numberOfTeams: Number(maxTeams) || 12,
+        numberOfMatches: actualMatchesCount,
+        scoringSystem: {
+          placementPoints: brPlacementPoints,
+          killPoints: Number(brKillPoints) || 1,
+          booyahBonus: 0,
+          tieBreakers: ['total_points', 'total_kills', 'better_placement', 'booyahs']
+        }
+      } : undefined,
+      clashSquadSettings: ffMode === 'clash_squad' ? {
+        matchFormat: csMatchFormat,
+      } : undefined,
+    } : {};
+
     try {
       const res = await fetch(`${API_BASE_URL}/api/tournaments`, {
         method: 'POST',
@@ -196,6 +228,7 @@ const OrganizerDashboard = () => {
           type,
           minTeamMembers: type === 'team' ? Number(minTeamMembers) : type === 'duo' ? 2 : 1,
           maxTeamMembers: type === 'team' ? Number(maxTeamMembers) : type === 'duo' ? 2 : 1,
+          ...ffPayload,
         }),
       });
 
@@ -489,6 +522,242 @@ const OrganizerDashboard = () => {
               </div>
             )}
 
+            {/* FREE FIRE TOURNAMENT MODE SELECTION */}
+            {(selectedGame === 'Free Fire' || selectedGame === 'Free Fire MAX' || (selectedGame === 'Other' && customGame.toLowerCase().includes('free fire'))) && (
+              <div className="form-group w-full ff-mode-selector-box" style={{
+                background: 'linear-gradient(135deg, rgba(249, 115, 22, 0.08) 0%, rgba(239, 68, 68, 0.05) 100%)',
+                border: '1px solid rgba(249, 115, 22, 0.3)',
+                borderRadius: '12px',
+                padding: '20px',
+                marginTop: '10px',
+                marginBottom: '15px',
+              }}>
+                <label className="form-label text-md" style={{ color: '#fb923c', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>🔥 FREE FIRE TOURNAMENT MODE</span>
+                  <span className="required-asterisk">*</span>
+                </label>
+                <p className="text-sm text-secondary mb-3">
+                  Select the tournament format. Battle Royale puts 12 teams in shared matches with leaderboards, while Clash Squad features direct Team vs Team knockout brackets.
+                </p>
+
+                {/* Mode Selectable Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
+                  {/* Card 1: Battle Royale */}
+                  <div
+                    onClick={() => {
+                      setFfMode('battle_royale');
+                      setMaxTeams('12');
+                      setType('team');
+                      setMinTeamMembers('4');
+                      setMaxTeamMembers('4');
+                    }}
+                    style={{
+                      border: ffMode === 'battle_royale' ? '2px solid #f97316' : '1px solid rgba(255,255,255,0.1)',
+                      background: ffMode === 'battle_royale' ? 'rgba(249, 115, 22, 0.15)' : 'rgba(0,0,0,0.3)',
+                      borderRadius: '10px',
+                      padding: '16px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: ffMode === 'battle_royale' ? '0 0 15px rgba(249, 115, 22, 0.25)' : 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#ffedd5', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        🔥 BATTLE ROYALE
+                      </span>
+                      <input
+                        type="radio"
+                        name="tournamentMode"
+                        checked={ffMode === 'battle_royale'}
+                        onChange={() => {
+                          setFfMode('battle_royale');
+                          setMaxTeams('12');
+                          setType('team');
+                          setMinTeamMembers('4');
+                          setMaxTeamMembers('4');
+                        }}
+                        style={{ accentColor: '#f97316', width: '18px', height: '18px' }}
+                      />
+                    </div>
+                    <p style={{ fontSize: '0.9rem', color: '#fed7aa', marginBottom: '4px', fontWeight: '500' }}>
+                      12 teams in one match
+                    </p>
+                    <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: 0 }}>
+                      Placement + Kill Points • Multi-match leaderboard
+                    </p>
+                  </div>
+
+                  {/* Card 2: Clash Squad */}
+                  <div
+                    onClick={() => {
+                      setFfMode('clash_squad');
+                      setMaxTeams('8');
+                      setType('team');
+                      setMinTeamMembers('4');
+                      setMaxTeamMembers('4');
+                    }}
+                    style={{
+                      border: ffMode === 'clash_squad' ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
+                      background: ffMode === 'clash_squad' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(0,0,0,0.3)',
+                      borderRadius: '10px',
+                      padding: '16px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      boxShadow: ffMode === 'clash_squad' ? '0 0 15px rgba(99, 102, 241, 0.25)' : 'none',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#e0e7ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        ⚔️ CLASH SQUAD
+                      </span>
+                      <input
+                        type="radio"
+                        name="tournamentMode"
+                        checked={ffMode === 'clash_squad'}
+                        onChange={() => {
+                          setFfMode('clash_squad');
+                          setMaxTeams('8');
+                          setType('team');
+                          setMinTeamMembers('4');
+                          setMaxTeamMembers('4');
+                        }}
+                        style={{ accentColor: '#6366f1', width: '18px', height: '18px' }}
+                      />
+                    </div>
+                    <p style={{ fontSize: '0.9rem', color: '#c7d2fe', marginBottom: '4px', fontWeight: '500' }}>
+                      Team vs Team Knockout
+                    </p>
+                    <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: 0 }}>
+                      Head-to-head bracket • BO1, BO3, BO5
+                    </p>
+                  </div>
+                </div>
+
+                {/* Sub-form: Battle Royale Specific Settings */}
+                {ffMode === 'battle_royale' && (
+                  <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgba(249, 115, 22, 0.2)' }}>
+                    <h5 style={{ color: '#fb923c', marginBottom: '12px', fontSize: '0.95rem', fontWeight: 'bold' }}>
+                      🔥 Battle Royale Match & Scoring Settings
+                    </h5>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.85rem' }}>Number of Matches</label>
+                        <select
+                          className="form-control"
+                          value={brMatchesCount}
+                          onChange={(e) => setBrMatchesCount(e.target.value)}
+                        >
+                          {[1, 2, 3, 4, 5, 6].map(n => (
+                            <option key={n} value={n}>{n} Match{n > 1 ? 'es' : ''} {n === 6 ? '(Standard Default)' : ''}</option>
+                          ))}
+                          <option value="custom">Custom...</option>
+                        </select>
+                      </div>
+
+                      {brMatchesCount === 'custom' && (
+                        <div>
+                          <label className="form-label" style={{ fontSize: '0.85rem' }}>Custom Matches Count</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="20"
+                            className="form-control"
+                            value={customMatchesCount}
+                            onChange={(e) => setCustomMatchesCount(e.target.value)}
+                            placeholder="e.g. 8"
+                            required
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.85rem' }}>Kill Point Value</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          className="form-control"
+                          value={brKillPoints}
+                          onChange={(e) => setBrKillPoints(e.target.value)}
+                          placeholder="1 pt / kill"
+                        />
+                        <small className="text-muted text-xs">Standard: 1 Kill = 1 Point</small>
+                      </div>
+                    </div>
+
+                    {/* Placement Points Table */}
+                    <div className="mt-3 p-3" style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#ffedd5' }}>
+                          Placement Points Distribution (1st - 12th)
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: '#4ade80' }}>Configurable</span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(65px, 1fr))', gap: '8px' }}>
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(pos => (
+                          <div key={pos} style={{ textAlign: 'center' }}>
+                            <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block', marginBottom: '2px' }}>
+                              #{pos}
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              className="form-control"
+                              style={{ padding: '4px', textAlign: 'center', fontSize: '0.85rem' }}
+                              value={brPlacementPoints[pos] ?? ''}
+                              onChange={(e) => {
+                                setBrPlacementPoints({
+                                  ...brPlacementPoints,
+                                  [pos]: Number(e.target.value) || 0,
+                                });
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-form: Clash Squad Specific Settings */}
+                {ffMode === 'clash_squad' && (
+                  <div className="mt-4 pt-3" style={{ borderTop: '1px solid rgba(99, 102, 241, 0.2)' }}>
+                    <h5 style={{ color: '#a5b4fc', marginBottom: '12px', fontSize: '0.95rem', fontWeight: 'bold' }}>
+                      ⚔️ Clash Squad Match & Bracket Format
+                    </h5>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.85rem' }}>Match Format</label>
+                        <select
+                          className="form-control"
+                          value={csMatchFormat}
+                          onChange={(e) => setCsMatchFormat(e.target.value)}
+                        >
+                          <option value="BO1">Best of 1 (First to 1 win)</option>
+                          <option value="BO3">Best of 3 (First to 2 wins) - Standard Default</option>
+                          <option value="BO5">Best of 5 (First to 3 wins)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.85rem' }}>Bracket Structure</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value="Single Elimination Knockout (Team vs Team)"
+                          disabled
+                          style={{ opacity: 0.8 }}
+                        />
+                      </div>
+                    </div>
+                    <small className="text-muted mt-2" style={{ fontSize: '0.8rem', display: 'block' }}>
+                      ⚡ Brackets automatically support 4, 8, 16, 32, 64 teams, or non-power-of-two team counts (such as 12 teams) with automatic Byes.
+                    </small>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="form-group">
               <label className="form-label">
                 Tournament Banner Photo <span className="required-asterisk">*</span>
@@ -665,15 +934,41 @@ const OrganizerDashboard = () => {
                   onChange={e => setMaxTeams(e.target.value)} 
                   required 
                 />
+                {(selectedGame === 'Free Fire' || selectedGame === 'Free Fire MAX') && ffMode === 'battle_royale' && (
+                  <small className="text-muted text-xs" style={{ color: '#fb923c' }}>
+                    🔥 12 teams is the standard Free Fire Battle Royale format.
+                  </small>
+                )}
+                {(selectedGame === 'Free Fire' || selectedGame === 'Free Fire MAX') && ffMode === 'clash_squad' && (
+                  <div className="mt-1" style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                    {[4, 8, 12, 16, 32, 64].map(count => (
+                      <button
+                        type="button"
+                        key={count}
+                        className={`btn btn-xs ${Number(maxTeams) === count ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{ padding: '2px 8px', fontSize: '0.75rem' }}
+                        onClick={() => setMaxTeams(count.toString())}
+                      >
+                        {count} Teams
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="form-label">
                   Registration Type <span className="required-asterisk">*</span>
                 </label>
                 <select className="form-control" value={type} onChange={e => setType(e.target.value)} required>
-                  <option value="solo">Solo (Player registrations)</option>
-                  <option value="duo">Duo (2 Player Teams)</option>
-                  <option value="team">Team (Squad registrations)</option>
+                  {(selectedGame === 'Free Fire' || selectedGame === 'Free Fire MAX') ? (
+                    <option value="team">Team (4 Players Squad)</option>
+                  ) : (
+                    <>
+                      <option value="solo">Solo (Player registrations)</option>
+                      <option value="duo">Duo (2 Player Teams)</option>
+                      <option value="team">Team (Squad registrations)</option>
+                    </>
+                  )}
                 </select>
               </div>
             </div>

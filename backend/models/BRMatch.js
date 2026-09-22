@@ -10,11 +10,11 @@ const BRMatchSchema = new mongoose.Schema(
     stage: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'TournamentStage',
-      required: true,
+      required: false,
     },
     groupName: {
       type: String,
-      required: true, // e.g., 'Group A'
+      default: 'Main',
     },
     matchNumber: {
       type: Number,
@@ -32,6 +32,7 @@ const BRMatchSchema = new mongoose.Schema(
     results: [
       {
         teamId: { type: mongoose.Schema.Types.ObjectId, ref: 'Team', required: true },
+        teamName: { type: String, default: '' },
         placement: { type: Number, required: true },
         kills: { type: Number, default: 0 },
         placementPoints: { type: Number, default: 0 },

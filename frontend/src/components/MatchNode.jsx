@@ -71,15 +71,31 @@ const MatchNode = ({ match, isOrganizer, onUpdateScore }) => {
     setShowModal(true);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e, markAsLive = false) => {
+    if (e && e.preventDefault) e.preventDefault();
     setError('');
 
     const numA = scoreA === '' ? 0 : parseInt(scoreA, 10);
     const numB = scoreB === '' ? 0 : parseInt(scoreB, 10);
 
-    if (isNaN(numA) || isNaN(numB)) {
-      setError('Please enter valid numerical scores.');
+    if (isNaN(numA) || isNaN(numB) || numA < 0 || numB < 0) {
+      setError('Please enter valid non-negative numerical scores.');
+      return;
+    }
+
+    const fmt = match.matchFormat || 'BO3';
+    let targetWins = null;
+    if (fmt === 'BO1') targetWins = 1;
+    else if (fmt === 'BO3') targetWins = 2;
+    else if (fmt === 'BO5') targetWins = 3;
+
+    if (markAsLive) {
+      try {
+        await onUpdateScore(match._id, numA, numB, 'live');
+        setShowModal(false);
+      } catch (err) {
+        setError(err.message || 'Failed to update live score.');
+      }
       return;
     }
 
@@ -88,8 +104,17 @@ const MatchNode = ({ match, isOrganizer, onUpdateScore }) => {
       return;
     }
 
+    if (targetWins !== null) {
+      const maxScore = Math.max(numA, numB);
+      const minScore = Math.min(numA, numB);
+      if (maxScore !== targetWins || minScore >= targetWins) {
+        setError(`Invalid score for ${fmt}. First team to win ${targetWins} round(s) wins the match (e.g. ${targetWins}-0 or ${targetWins}-${targetWins - 1}).`);
+        return;
+      }
+    }
+
     try {
-      await onUpdateScore(match._id, numA, numB);
+      await onUpdateScore(match._id, numA, numB, 'completed');
       if (mvpPlayerId) {
         await handleSetMVP(mvpPlayerId, mvpCommentInput);
       }
@@ -152,30 +177,53 @@ const MatchNode = ({ match, isOrganizer, onUpdateScore }) => {
 
   const teamAPlayers = getTeamPlayers(teamA, nameA);
   const teamBPlayers = getTeamPlayers(teamB, nameB);
-  const displayRound = match.relativeRound || round;
-  const isLoserBracket = match.bracketType === 'losers';
-  const isGrandFinal = match.bracketType === 'winners' && !match.nextMatchId && round > 1;
+  const isLive = status === 'live';
+  const displayScore = isCompleted || isLive;
 
   return (
-    <div className={`match-node glass-panel ${isCompleted ? 'completed' : 'scheduled'} ${isGrandFinal ? 'grand-final-node' : ''}`}>
-      <div className="match-node-header">
-        <span className="match-id-label">
-          {isGrandFinal ? `🏆 GRAND FINAL` : isLoserBracket ? `Losers R${displayRound} P${position}` : `Match R${displayRound} P${position}`}
-        </span>
-        {isWalkover && (
-          <span className="walkover-badge" title={walkoverReason}>
-            <AlertTriangle size={10} /> WALKOVER
+    <div className={`match-node glass-panel ${isCompleted ? 'completed' : isLive ? 'live-node' : 'scheduled'} ${isGrandFinal ? 'grand-final-node' : ''}`}>
+      <div className="match-node-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span className="match-id-label">
+            {isGrandFinal ? `🏆 GRAND FINAL` : isLoserBracket ? `Losers R${displayRound} P${position}` : `⚔️ Match R${displayRound} P${position}`}
           </span>
-        )}
-        {isOrganizer && (
-          <button 
-            className="match-edit-btn" 
-            onClick={handleOpenModal}
-            title="Record Score"
-          >
-            <Edit2 size={12} />
-          </button>
-        )}
+          {match.matchFormat && (
+            <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.25)', color: '#818cf8', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', border: '1px solid rgba(99, 102, 241, 0.4)' }}>
+              {match.matchFormat}
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          {isLive ? (
+            <span className="badge" style={{ background: 'rgba(239, 68, 68, 0.25)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)', fontSize: '0.65rem', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+              🔴 LIVE
+            </span>
+          ) : isCompleted ? (
+            <span className="badge" style={{ background: 'rgba(34, 197, 94, 0.2)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.4)', fontSize: '0.65rem', padding: '2px 6px' }}>
+              ✅ COMPLETED
+            </span>
+          ) : (
+            <span className="badge" style={{ background: 'rgba(148, 163, 184, 0.15)', color: '#94a3b8', fontSize: '0.65rem', padding: '2px 6px' }}>
+              UPCOMING
+            </span>
+          )}
+
+          {isWalkover && (
+            <span className="walkover-badge" title={walkoverReason}>
+              <AlertTriangle size={10} /> WALKOVER
+            </span>
+          )}
+          {isOrganizer && (
+            <button 
+              className="match-edit-btn" 
+              onClick={handleOpenModal}
+              title="Record Score"
+            >
+              <Edit2 size={12} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="match-teams">
@@ -192,7 +240,7 @@ const MatchNode = ({ match, isOrganizer, onUpdateScore }) => {
             {isCompleted && isGrandFinal && teamAWon && <span className="final-tag champ">CHAMPION 🏆</span>}
             {isCompleted && isGrandFinal && !teamAWon && <span className="final-tag runner">RUNNER-UP 🥈</span>}
           </span>
-          <span className="team-score">{isCompleted ? match.scoreA : '-'}</span>
+          <span className="team-score">{displayScore ? match.scoreA : '-'}</span>
         </div>
 
         <div className="match-divider"></div>
@@ -210,7 +258,7 @@ const MatchNode = ({ match, isOrganizer, onUpdateScore }) => {
             {isCompleted && isGrandFinal && teamBWon && <span className="final-tag champ">CHAMPION 🏆</span>}
             {isCompleted && isGrandFinal && !teamBWon && <span className="final-tag runner">RUNNER-UP 🥈</span>}
           </span>
-          <span className="team-score">{isCompleted ? match.scoreB : '-'}</span>
+          <span className="team-score">{displayScore ? match.scoreB : '-'}</span>
         </div>
       </div>
 
@@ -320,21 +368,36 @@ const MatchNode = ({ match, isOrganizer, onUpdateScore }) => {
                 </div>
               )}
 
+              {match.matchFormat && (
+                <div className="mt-3 p-2 text-xs" style={{ background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.3)', borderRadius: '6px', color: '#c7d2fe' }}>
+                  ℹ️ <strong>{match.matchFormat} Rules:</strong> First team to win {match.matchFormat === 'BO1' ? '1 round' : match.matchFormat === 'BO3' ? '2 rounds' : '3 rounds'} wins the match. Invalid scores (e.g. ties or exceeding target wins) will be rejected.
+                </div>
+              )}
+
               {error && <p className="error-text mt-4">{error}</p>}
               {!teamA.id || !teamB.id ? (
                 <p className="warning-text mt-4 text-center">Cannot record scores until both participants are advanced.</p>
               ) : null}
 
-              <div className="modal-actions mt-4">
+              <div className="modal-actions mt-4" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>
                   Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-warning btn-sm"
+                  disabled={!teamA.id || !teamB.id}
+                  onClick={(e) => handleSubmit(e, true)}
+                  title="Mark match as ongoing with current partial score"
+                >
+                  🔴 Save as LIVE
                 </button>
                 <button 
                   type="submit" 
                   className="btn btn-primary"
                   disabled={!teamA.id || !teamB.id}
                 >
-                  Save Score
+                  ✅ Finalize & Advance
                 </button>
               </div>
             </form>

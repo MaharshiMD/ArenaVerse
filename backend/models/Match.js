@@ -51,8 +51,13 @@ const MatchSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['scheduled', 'completed'],
+      enum: ['scheduled', 'upcoming', 'live', 'completed'],
       default: 'scheduled',
+    },
+    matchFormat: {
+      type: String,
+      enum: ['BO1', 'BO3', 'BO5'],
+      default: 'BO3',
     },
     participantModel: {
       type: String,

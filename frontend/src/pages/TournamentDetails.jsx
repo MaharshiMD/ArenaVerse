@@ -3,11 +3,13 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import BracketView from '../components/BracketView';
+import BattleRoyaleView from '../components/BattleRoyaleView';
+import ClashSquadTeamView from '../components/ClashSquadTeamView';
 import TournamentChat from '../components/TournamentChat';
 import TournamentReviews from '../components/TournamentReviews';
 import TournamentHighlights from '../components/TournamentHighlights';
 import DisputeModal from '../components/DisputeModal';
-import { Calendar, Award, IndianRupee, Users, BookOpen, UserCheck, AlertTriangle, ArrowLeft, Trophy, Crown, Medal, Megaphone, Send, MessageSquare, FileText, Download, Star, Eye, ShieldAlert, ShieldCheck, Sparkles, Wallet, CreditCard, Globe } from 'lucide-react';
+import { Calendar, Award, IndianRupee, Users, BookOpen, UserCheck, AlertTriangle, ArrowLeft, Trophy, Crown, Medal, Megaphone, Send, MessageSquare, FileText, Download, Star, Eye, ShieldAlert, ShieldCheck, Sparkles, Wallet, CreditCard, Globe, Flame, Swords } from 'lucide-react';
 import EsportsCertificateModal from '../components/EsportsCertificateModal';
 import { API_BASE_URL } from '../config/api';
 import './TournamentDetails.css';
@@ -400,14 +402,14 @@ const TournamentDetails = () => {
     }
   };
 
-  const handleUpdateScore = async (matchId, scoreA, scoreB) => {
+  const handleUpdateScore = async (matchId, scoreA, scoreB, status = 'completed') => {
     const res = await fetch(`${API_BASE_URL}/api/matches/${matchId}/score`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
         ...getAuthHeader(),
       },
-      body: JSON.stringify({ scoreA, scoreB }),
+      body: JSON.stringify({ scoreA, scoreB, status }),
     });
 
     const data = await res.json();
@@ -514,6 +516,16 @@ const TournamentDetails = () => {
           <div className="details-badges">
             <span className={`badge badge-${tournament.status}`}>{tournament.status}</span>
             <span className={`badge badge-${tournament.type}`}>{tournament.type}</span>
+            {tournament.tournamentMode === 'battle_royale' && (
+              <span className="badge" style={{ background: 'rgba(249, 115, 22, 0.25)', color: '#fb923c', border: '1px solid rgba(249, 115, 22, 0.4)', fontWeight: 'bold' }}>
+                🔥 BATTLE ROYALE (12 SQUADS)
+              </span>
+            )}
+            {tournament.tournamentMode === 'clash_squad' && (
+              <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.25)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.4)', fontWeight: 'bold' }}>
+                ⚔️ CLASH SQUAD ({tournament.clashSquadSettings?.matchFormat || 'BO3'})
+              </span>
+            )}
             {!user && <span className="badge badge-spectator" style={{ background: '#8b5cf6', color: '#ffffff' }}>👁️ SPECTATOR MODE</span>}
           </div>
           <h1>{tournament.name}</h1>
@@ -807,7 +819,17 @@ const TournamentDetails = () => {
             setActiveTab('bracket');
           }}
         >
-          Tournament Bracket
+          {tournament.tournamentMode === 'battle_royale' ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Flame size={16} style={{ color: '#f97316' }} /> 🔥 Battle Royale Standings
+            </span>
+          ) : tournament.tournamentMode === 'clash_squad' ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Swords size={16} style={{ color: '#818cf8' }} /> ⚔️ Clash Squad Bracket
+            </span>
+          ) : (
+            'Tournament Bracket'
+          )}
         </button>
         <button 
           className={`tab-btn ${activeTab === 'participants' ? 'active' : ''}`}
@@ -931,30 +953,96 @@ const TournamentDetails = () => {
           </div>
         )}
         {activeTab === 'bracket' && (
-          <div className="panel-bracket glass-panel">
-            {tournament.status === 'draft' ? (
-              <div className="text-center py-4">
-                <AlertTriangle size={32} className="warning-icon mb-4" style={{ margin: '0 auto 12px auto' }} />
-                <h3>Bracket Not Generated Yet</h3>
-                <p className="text-secondary text-sm">The tournament is currently in draft mode. Click below to publish and make it live!</p>
-                {isOrganizer && (
-                  <div className="mt-4 flex-col items-center">
-                    <button 
-                      className="btn btn-primary py-3 px-4" 
-                      onClick={handleDirectPublish}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '1rem', borderRadius: '12px' }}
-                    >
-                      <Globe size={20} /> 🚀 Publish Tournament & Generate Live Bracket
-                    </button>
+          <div className="panel-bracket">
+            {tournament.tournamentMode === 'battle_royale' ? (
+              tournament.status === 'draft' ? (
+                <div className="text-center py-4 glass-panel">
+                  <Flame size={36} className="warning-icon mb-4" style={{ margin: '0 auto 12px auto', color: '#f97316' }} />
+                  <h3>Battle Royale Matches Not Scheduled Yet</h3>
+                  <p className="text-secondary text-sm">The 12-team Free Fire Battle Royale tournament is currently in draft mode. Click below to schedule matches and go live!</p>
+                  {isOrganizer && (
+                    <div className="mt-4 flex-col items-center">
+                      <button 
+                        className="btn btn-primary py-3 px-4" 
+                        onClick={handleDirectPublish}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '1rem', borderRadius: '12px' }}
+                      >
+                        <Globe size={20} /> 🚀 Publish Tournament & Schedule 12-Team Matches
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <BattleRoyaleView 
+                  tournament={tournament}
+                  isOrganizer={isOrganizer}
+                  getAuthHeader={getAuthHeader}
+                  onResultsUpdated={fetchDetails}
+                />
+              )
+            ) : tournament.tournamentMode === 'clash_squad' ? (
+              tournament.status === 'draft' ? (
+                <div className="text-center py-4 glass-panel">
+                  <Swords size={36} className="warning-icon mb-4" style={{ margin: '0 auto 12px auto', color: '#6366f1' }} />
+                  <h3>Clash Squad Bracket Not Generated Yet</h3>
+                  <p className="text-secondary text-sm">The Clash Squad knockout tournament is in draft mode. Click below to generate the Team vs Team bracket and go live!</p>
+                  {isOrganizer && (
+                    <div className="mt-4 flex-col items-center">
+                      <button 
+                        className="btn btn-primary py-3 px-4" 
+                        onClick={handleDirectPublish}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '1rem', borderRadius: '12px' }}
+                      >
+                        <Globe size={20} /> 🚀 Publish Tournament & Generate Clash Squad Bracket
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <ClashSquadTeamView 
+                    tournament={tournament}
+                    matches={matches}
+                    user={user}
+                    myTeams={myTeams}
+                  />
+                  <div className="glass-panel" style={{ padding: '16px' }}>
+                    <BracketView 
+                      matches={matches} 
+                      isOrganizer={isOrganizer} 
+                      onUpdateScore={handleUpdateScore} 
+                    />
                   </div>
+                </div>
+              )
+            ) : (
+              // Standard bracket for other games
+              <div className="glass-panel" style={{ padding: '16px' }}>
+                {tournament.status === 'draft' ? (
+                  <div className="text-center py-4">
+                    <AlertTriangle size={32} className="warning-icon mb-4" style={{ margin: '0 auto 12px auto' }} />
+                    <h3>Bracket Not Generated Yet</h3>
+                    <p className="text-secondary text-sm">The tournament is currently in draft mode. Click below to publish and make it live!</p>
+                    {isOrganizer && (
+                      <div className="mt-4 flex-col items-center">
+                        <button 
+                          className="btn btn-primary py-3 px-4" 
+                          onClick={handleDirectPublish}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '1rem', borderRadius: '12px' }}
+                        >
+                          <Globe size={20} /> 🚀 Publish Tournament & Generate Live Bracket
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <BracketView 
+                    matches={matches} 
+                    isOrganizer={isOrganizer} 
+                    onUpdateScore={handleUpdateScore} 
+                  />
                 )}
               </div>
-            ) : (
-              <BracketView 
-                matches={matches} 
-                isOrganizer={isOrganizer} 
-                onUpdateScore={handleUpdateScore} 
-              />
             )}
           </div>
         )}
