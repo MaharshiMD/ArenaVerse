@@ -82,7 +82,7 @@ const createOrder = async (req, res) => {
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
-    if (keyId && keySecret && keyId !== 'rzp_test_mockkey123') {
+    if (keyId && keySecret && keyId !== 'rzp_test_mockkey123' && keySecret !== 'razorpay_dev_secret_stub' && keySecret !== 'mocksecret123') {
       try {
         const razorpay = getRazorpayInstance();
         order = await razorpay.orders.create(options);
@@ -251,7 +251,7 @@ const createWalletDepositOrder = async (req, res) => {
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
-    if (keyId && keySecret && keyId !== 'rzp_test_mockkey123') {
+    if (keyId && keySecret && keyId !== 'rzp_test_mockkey123' && keySecret !== 'razorpay_dev_secret_stub' && keySecret !== 'mocksecret123') {
       try {
         const razorpay = getRazorpayInstance();
         order = await razorpay.orders.create(options);
