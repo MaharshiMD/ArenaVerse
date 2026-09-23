@@ -424,7 +424,10 @@ const getTournamentById = async (req, res) => {
       .sort({ placement: 1 });
 
     let brMatches = [];
-    if (tournament.tournamentMode === 'battle_royale' || tournament.format === 'battle_royale') {
+    const isBR = tournament.tournamentMode === 'battle_royale' || 
+      tournament.format === 'battle_royale' || 
+      ((tournament.game === 'Free Fire' || tournament.game === 'Free Fire MAX') && tournament.tournamentMode !== 'clash_squad');
+    if (isBR) {
       brMatches = await BRMatch.find({ tournament: tournament._id })
         .populate('results.teamId', 'name logo tag')
         .sort({ matchNumber: 1 });
@@ -615,7 +618,10 @@ const publishTournament = async (req, res) => {
     }
 
     // MODE 1: BATTLE ROYALE MODE
-    if (tournament.tournamentMode === 'battle_royale' || tournament.format === 'battle_royale') {
+    const isBRMode = tournament.tournamentMode === 'battle_royale' || 
+      tournament.format === 'battle_royale' || 
+      ((tournament.game === 'Free Fire' || tournament.game === 'Free Fire MAX') && tournament.tournamentMode !== 'clash_squad');
+    if (isBRMode) {
       const neededTeams = tournament.brSettings?.numberOfTeams || 12;
       let registeredTeamIds = [...(tournament.registeredTeams || [])];
 

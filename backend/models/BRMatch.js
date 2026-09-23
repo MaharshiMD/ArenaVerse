@@ -26,7 +26,7 @@ const BRMatchSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['scheduled', 'ongoing', 'completed'],
+      enum: ['scheduled', 'ongoing', 'live', 'completed'],
       default: 'scheduled',
     },
     results: [

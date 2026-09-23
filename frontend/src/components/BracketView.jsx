@@ -101,7 +101,12 @@ const BracketView = ({ matches, isOrganizer, onUpdateScore }) => {
                   {roundsMap[roundNum].map(match => (
                     <div key={match._id} className="match-node-wrapper">
                       <MatchNode 
-                        match={{ ...match, relativeRound: index + 1 }} 
+                        match={{ 
+                          ...match, 
+                          relativeRound: index + 1,
+                          isGrandFinal: (!hasLoserMatches && isLast) || (activeBracket === 'winners' && isLast),
+                          isLoserBracket: activeBracket === 'losers' || match.bracketType === 'losers',
+                        }} 
                         isOrganizer={isOrganizer} 
                         onUpdateScore={onUpdateScore} 
                       />

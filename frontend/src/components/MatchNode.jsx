@@ -19,6 +19,10 @@ const MatchNode = ({ match, isOrganizer, onUpdateScore }) => {
 
   const { teamA, teamB, winner, status, round, position, checkInA, checkInB, isWalkover, walkoverReason, mvp, mvpComment } = match;
 
+  const isGrandFinal = Boolean(match.isGrandFinal || match.isFinal || match.matchType === 'grand_final');
+  const isLoserBracket = Boolean(match.isLoserBracket || match.bracketType === 'losers');
+  const displayRound = match.relativeRound || round || 1;
+
   const handleSetMVP = async (selectedUserId, commentStr) => {
     if (!selectedUserId) return;
     try {

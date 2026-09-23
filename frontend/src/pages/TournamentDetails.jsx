@@ -547,6 +547,12 @@ const TournamentDetails = () => {
       }))
     : [];
 
+  const isBattleRoyale = tournament?.tournamentMode === 'battle_royale' || 
+    tournament?.format === 'battle_royale' || 
+    ((tournament?.game === 'Free Fire' || tournament?.game === 'Free Fire MAX') && tournament?.tournamentMode !== 'clash_squad');
+
+  const isClashSquad = tournament?.tournamentMode === 'clash_squad';
+
   const handleDirectPublish = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/tournaments/${id}/publish`, {
@@ -608,12 +614,12 @@ const TournamentDetails = () => {
           <div className="details-badges">
             <span className={`badge badge-${tournament.status}`}>{tournament.status}</span>
             <span className={`badge badge-${tournament.type}`}>{tournament.type}</span>
-            {tournament.tournamentMode === 'battle_royale' && (
+            {isBattleRoyale && (
               <span className="badge" style={{ background: 'rgba(249, 115, 22, 0.25)', color: '#fb923c', border: '1px solid rgba(249, 115, 22, 0.4)', fontWeight: 'bold' }}>
-                🔥 BATTLE ROYALE (12 SQUADS)
+                🔥 BATTLE ROYALE ({tournament.registeredTeams?.length || 12} SQUADS)
               </span>
             )}
-            {tournament.tournamentMode === 'clash_squad' && (
+            {isClashSquad && (
               <span className="badge" style={{ background: 'rgba(99, 102, 241, 0.25)', color: '#818cf8', border: '1px solid rgba(99, 102, 241, 0.4)', fontWeight: 'bold' }}>
                 ⚔️ CLASH SQUAD ({tournament.clashSquadSettings?.matchFormat || 'BO3'})
               </span>
@@ -924,11 +930,11 @@ const TournamentDetails = () => {
             setActiveTab('bracket');
           }}
         >
-          {tournament.tournamentMode === 'battle_royale' ? (
+          {isBattleRoyale ? (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
               <Flame size={16} style={{ color: '#f97316' }} /> 🔥 Battle Royale Standings
             </span>
-          ) : tournament.tournamentMode === 'clash_squad' ? (
+          ) : isClashSquad ? (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
               <Swords size={16} style={{ color: '#818cf8' }} /> ⚔️ Clash Squad Bracket
             </span>
@@ -1059,12 +1065,12 @@ const TournamentDetails = () => {
         )}
         {activeTab === 'bracket' && (
           <div className="panel-bracket">
-            {tournament.tournamentMode === 'battle_royale' ? (
+            {isBattleRoyale ? (
               tournament.status === 'draft' ? (
                 <div className="text-center py-4 glass-panel">
                   <Flame size={36} className="warning-icon mb-4" style={{ margin: '0 auto 12px auto', color: '#f97316' }} />
                   <h3>Battle Royale Matches Not Scheduled Yet</h3>
-                  <p className="text-secondary text-sm">The 12-team Free Fire Battle Royale tournament is currently in draft mode. Click below to schedule matches and go live!</p>
+                  <p className="text-secondary text-sm">The Free Fire Battle Royale tournament is currently in draft mode. Click below to schedule matches and go live!</p>
                   {isOrganizer && (
                     <div className="mt-4 flex-col items-center">
                       <button 
@@ -1072,7 +1078,7 @@ const TournamentDetails = () => {
                         onClick={handleDirectPublish}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: '1rem', borderRadius: '12px' }}
                       >
-                        <Globe size={20} /> 🚀 Publish Tournament & Schedule 12-Team Matches
+                        <Globe size={20} /> 🚀 Publish Tournament & Schedule Matches
                       </button>
                     </div>
                   )}
@@ -1085,7 +1091,7 @@ const TournamentDetails = () => {
                   onResultsUpdated={fetchDetails}
                 />
               )
-            ) : tournament.tournamentMode === 'clash_squad' ? (
+            ) : isClashSquad ? (
               tournament.status === 'draft' ? (
                 <div className="text-center py-4 glass-panel">
                   <Swords size={36} className="warning-icon mb-4" style={{ margin: '0 auto 12px auto', color: '#6366f1' }} />
