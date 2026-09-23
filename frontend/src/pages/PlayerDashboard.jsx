@@ -570,7 +570,7 @@ const PlayerDashboard = () => {
                         
                         {/* Members list */}
                         <div className="w-full mt-1 mb-2">
-                          <span className="text-secondary text-xs block mb-1"><strong>Squad Members ({team.members.length} / {team.maxMembers || 10}):</strong></span>
+                          <span className="text-secondary text-xs block mb-1"><strong>Squad Members ({team.members.length} / {team.maxMembers || 5}):</strong></span>
                           <div className="flex flex-wrap gap-1">
                             {team.members.map(m => (
                               <span key={m._id} className="badge badge-draft text-xs mr-1 mb-1" style={{ display: 'inline-block', padding: '2px 8px' }}>
@@ -678,7 +678,7 @@ const PlayerDashboard = () => {
                         <div style={{ width: '100%' }}>
                           <h4 style={{ margin: 0 }}>{invTeam.name}</h4>
                           <p className="text-secondary text-xs" style={{ margin: '2px 0 0 0' }}>
-                            Captain: <strong>{invTeam.captain.username}</strong> | Members: <strong>{invTeam.members.length} / {invTeam.maxMembers || 10}</strong>
+                            Captain: <strong>{invTeam.captain.username}</strong> | Members: <strong>{invTeam.members.length} / {invTeam.maxMembers || 5}</strong>
                           </p>
                         </div>
                         <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
@@ -746,7 +746,7 @@ const PlayerDashboard = () => {
                               <h4 style={{ margin: 0 }}>{sTeam.name}</h4>
                               <p className="text-secondary text-xs" style={{ margin: '2px 0 0 0' }}>{sTeam.description || 'No description.'}</p>
                               <p className="text-secondary text-xs" style={{ margin: '2px 0 0 0' }}>
-                                Captain: <strong>{sTeam.captain.username}</strong> | Members: <strong>{sTeam.members.length} / {sTeam.maxMembers || 10}</strong>
+                                Captain: <strong>{sTeam.captain.username}</strong> | Members: <strong>{sTeam.members.length} / {sTeam.maxMembers || 5}</strong>
                               </p>
                             </div>
                           </div>
@@ -760,9 +760,9 @@ const PlayerDashboard = () => {
                                 className="btn btn-secondary btn-sm" 
                                 style={{ padding: '2px 10px', fontSize: '12px' }}
                                 onClick={() => handleRequestJoin(sTeam._id)}
-                                disabled={sTeam.members.length >= (sTeam.maxMembers || 10)}
+                                disabled={sTeam.members.length >= (sTeam.maxMembers || 5)}
                               >
-                                {sTeam.members.length >= (sTeam.maxMembers || 10) ? 'FULL' : 'Request to Join'}
+                                {sTeam.members.length >= (sTeam.maxMembers || 5) ? 'FULL' : 'Request to Join'}
                               </button>
                             )}
                           </div>

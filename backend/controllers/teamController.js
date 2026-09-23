@@ -59,7 +59,7 @@ const joinTeam = async (req, res) => {
       return res.status(400).json({ message: 'You are already a member of this team' });
     }
 
-    if (team.members.length >= (team.maxMembers || 10)) {
+    if (team.members.length >= (team.maxMembers || 5)) {
       return res.status(400).json({ message: 'Team is already full (maximum capacity reached)' });
     }
 
@@ -208,7 +208,7 @@ const requestJoin = async (req, res) => {
       return res.status(400).json({ message: 'You have already requested to join this team' });
     }
 
-    if (team.members.length >= (team.maxMembers || 10)) {
+    if (team.members.length >= (team.maxMembers || 5)) {
       return res.status(400).json({ message: 'Team is already full (maximum capacity reached)' });
     }
 
@@ -260,7 +260,7 @@ const respondToJoinRequest = async (req, res) => {
     team.joinRequests = team.joinRequests.filter(id => id.toString() !== userId.toString());
 
     if (action === 'accept') {
-      if (team.members.length >= (team.maxMembers || 10)) {
+      if (team.members.length >= (team.maxMembers || 5)) {
         return res.status(400).json({ message: 'Team is already full (maximum capacity reached)' });
       }
       if (!team.members.some(id => id.toString() === userId.toString())) {
@@ -320,7 +320,7 @@ const invitePlayer = async (req, res) => {
       return res.status(400).json({ message: 'Player is already invited to this team' });
     }
 
-    if (team.members.length >= (team.maxMembers || 10)) {
+    if (team.members.length >= (team.maxMembers || 5)) {
       return res.status(400).json({ message: 'Team is already full (maximum capacity reached)' });
     }
 
@@ -371,7 +371,7 @@ const respondToInvitation = async (req, res) => {
     team.invitedPlayers = team.invitedPlayers.filter(id => id.toString() !== req.user._id.toString());
 
     if (action === 'accept') {
-      if (team.members.length >= (team.maxMembers || 10)) {
+      if (team.members.length >= (team.maxMembers || 5)) {
         return res.status(400).json({ message: 'Team is already full (maximum capacity reached)' });
       }
       if (!team.members.some(id => id.toString() === req.user._id.toString())) {

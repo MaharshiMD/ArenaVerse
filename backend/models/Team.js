@@ -33,7 +33,7 @@ const TeamSchema = new mongoose.Schema(
     },
     maxMembers: {
       type: Number,
-      default: 10,
+      default: 5,
     },
     joinRequests: [
       {

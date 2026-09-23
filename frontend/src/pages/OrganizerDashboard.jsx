@@ -549,7 +549,7 @@ const OrganizerDashboard = () => {
                       setMaxTeams('12');
                       setType('team');
                       setMinTeamMembers('4');
-                      setMaxTeamMembers('4');
+                      setMaxTeamMembers('5');
                     }}
                     style={{
                       border: ffMode === 'battle_royale' ? '2px solid #f97316' : '1px solid rgba(255,255,255,0.1)',
@@ -574,7 +574,7 @@ const OrganizerDashboard = () => {
                           setMaxTeams('12');
                           setType('team');
                           setMinTeamMembers('4');
-                          setMaxTeamMembers('4');
+                          setMaxTeamMembers('5');
                         }}
                         style={{ accentColor: '#f97316', width: '18px', height: '18px' }}
                       />
@@ -594,7 +594,7 @@ const OrganizerDashboard = () => {
                       setMaxTeams('8');
                       setType('team');
                       setMinTeamMembers('4');
-                      setMaxTeamMembers('4');
+                      setMaxTeamMembers('5');
                     }}
                     style={{
                       border: ffMode === 'clash_squad' ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.1)',
@@ -619,7 +619,7 @@ const OrganizerDashboard = () => {
                           setMaxTeams('8');
                           setType('team');
                           setMinTeamMembers('4');
-                          setMaxTeamMembers('4');
+                          setMaxTeamMembers('5');
                         }}
                         style={{ accentColor: '#6366f1', width: '18px', height: '18px' }}
                       />

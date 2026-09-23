@@ -47,6 +47,17 @@ const createOrder = async (req, res) => {
       if (!team.members.some(id => id.toString() === req.user._id.toString())) {
         return res.status(403).json({ message: 'You must be a member of the team to register it' });
       }
+      if (tournament.type === 'duo' && team.members.length !== 2) {
+        return res.status(400).json({ message: `Duo format requires exactly 2 team members (Selected team has ${team.members.length})` });
+      }
+      if (tournament.type === 'team') {
+        if (tournament.minTeamMembers && team.members.length < tournament.minTeamMembers) {
+          return res.status(400).json({ message: `Team must have at least ${tournament.minTeamMembers} members for this tournament (Selected team has ${team.members.length})` });
+        }
+        if (tournament.maxTeamMembers && team.members.length > tournament.maxTeamMembers) {
+          return res.status(400).json({ message: `Team exceeds max limit of ${tournament.maxTeamMembers} members for this tournament (Selected team has ${team.members.length})` });
+        }
+      }
       if (tournament.registeredTeams.some(id => id.toString() === teamId.toString())) {
         return res.status(400).json({ message: 'This team is already registered' });
       }
@@ -95,7 +106,7 @@ const createOrder = async (req, res) => {
     const payment = await Payment.create({
       tournament: tournamentId,
       user: req.user._id,
-      team: tournament.type === 'team' ? teamId : null,
+      team: tournament.type !== 'solo' ? teamId : null,
       amount: tournament.entryFee,
       currency: 'INR',
       orderId: order.id,
@@ -168,8 +179,9 @@ const verifyPayment = async (req, res) => {
         tournament.registeredPlayers.push(payment.user);
       }
     } else {
-      if (!tournament.registeredTeams.some(id => id.toString() === payment.team.toString())) {
-        tournament.registeredTeams.push(payment.team);
+      const regTeamId = payment.team || req.body.teamId;
+      if (regTeamId && !tournament.registeredTeams.some(id => id.toString() === regTeamId.toString())) {
+        tournament.registeredTeams.push(regTeamId);
       }
     }
 
@@ -368,6 +380,17 @@ const payWithWallet = async (req, res) => {
       if (!team.members.some(id => id.toString() === req.user._id.toString())) {
         return res.status(403).json({ message: 'You must be a member of the team to register it' });
       }
+      if (tournament.type === 'duo' && team.members.length !== 2) {
+        return res.status(400).json({ message: `Duo format requires exactly 2 team members (Selected team has ${team.members.length})` });
+      }
+      if (tournament.type === 'team') {
+        if (tournament.minTeamMembers && team.members.length < tournament.minTeamMembers) {
+          return res.status(400).json({ message: `Team must have at least ${tournament.minTeamMembers} members for this tournament (Selected team has ${team.members.length})` });
+        }
+        if (tournament.maxTeamMembers && team.members.length > tournament.maxTeamMembers) {
+          return res.status(400).json({ message: `Team exceeds max limit of ${tournament.maxTeamMembers} members for this tournament (Selected team has ${team.members.length})` });
+        }
+      }
       if (tournament.registeredTeams.some(id => id.toString() === teamId.toString())) {
         return res.status(400).json({ message: 'This team is already registered' });
       }
@@ -399,7 +422,7 @@ const payWithWallet = async (req, res) => {
     await Payment.create({
       tournament: tournamentId,
       user: req.user._id,
-      team: tournament.type === 'team' ? teamId : null,
+      team: tournament.type !== 'solo' ? teamId : null,
       amount: tournament.entryFee,
       currency: 'INR',
       orderId: refId,
@@ -408,9 +431,13 @@ const payWithWallet = async (req, res) => {
     });
 
     if (tournament.type === 'solo') {
-      tournament.registeredPlayers.push(req.user._id);
+      if (!tournament.registeredPlayers.some(id => id.toString() === req.user._id.toString())) {
+        tournament.registeredPlayers.push(req.user._id);
+      }
     } else {
-      tournament.registeredTeams.push(teamId);
+      if (!tournament.registeredTeams.some(id => id.toString() === teamId.toString())) {
+        tournament.registeredTeams.push(teamId);
+      }
     }
     await tournament.save();
 

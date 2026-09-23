@@ -16,6 +16,7 @@ const { protect } = require('../middleware/auth');
 router.use(protect); // All payment routes require authentication
 
 router.post('/order', createOrder);
+router.post('/create-order', createOrder);
 router.post('/verify', verifyPayment);
 router.get('/history', getPaymentHistory);
 router.post('/wallet-order', createWalletDepositOrder);

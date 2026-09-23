@@ -69,7 +69,7 @@ const TournamentDetails = () => {
         const data = await res.json();
         setMyTeams(data);
         if (data.length > 0) {
-          setSelectedTeamId(data[0]._id);
+          setSelectedTeamId(prev => prev || data[0]._id);
         }
       }
     } catch (err) {
@@ -230,8 +230,9 @@ const TournamentDetails = () => {
     setJoinError('');
     setJoinSuccess('');
     try {
-      if (tournament.type === 'team' && !selectedTeamId) {
-        setJoinError('Please select a team to join.');
+      const activeTeamId = selectedTeamId || (myTeams && myTeams.length > 0 ? myTeams[0]._id : null);
+      if (tournament.type !== 'solo' && !activeTeamId) {
+        setJoinError('Please select or create a team before joining this tournament.');
         return;
       }
       const res = await fetch(`${API_BASE_URL}/api/payments/pay-with-wallet`, {
@@ -242,9 +243,15 @@ const TournamentDetails = () => {
         },
         body: JSON.stringify({
           tournamentId: id,
-          teamId: tournament.type === 'team' ? selectedTeamId : null,
+          teamId: tournament.type !== 'solo' ? activeTeamId : null,
         }),
       });
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Server returned status ${res.status}. Please check your connection or try again.`);
+      }
+
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.message || 'Wallet payment failed');
@@ -261,14 +268,15 @@ const TournamentDetails = () => {
     setJoinSuccess('');
 
     try {
-      if (tournament.type === 'team' && !selectedTeamId) {
-        setJoinError('Please select a team to join.');
+      const activeTeamId = selectedTeamId || (myTeams && myTeams.length > 0 ? myTeams[0]._id : null);
+      if (tournament.type !== 'solo' && !activeTeamId) {
+        setJoinError('Please select or create a team before joining this tournament.');
         return;
       }
 
       if (tournament.entryFee > 0) {
         // 1. Create Razorpay Payment Order
-        const orderRes = await fetch(`${API_BASE_URL}/api/payments/create-order`, {
+        const orderRes = await fetch(`${API_BASE_URL}/api/payments/order`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -276,9 +284,14 @@ const TournamentDetails = () => {
           },
           body: JSON.stringify({
             tournamentId: id,
-            teamId: tournament.type === 'team' ? selectedTeamId : null
+            teamId: tournament.type !== 'solo' ? activeTeamId : null
           })
         });
+
+        const orderContentType = orderRes.headers.get('content-type');
+        if (!orderContentType || !orderContentType.includes('application/json')) {
+          throw new Error(`Payment service returned status ${orderRes.status}. Please try again later or use Arena Wallet.`);
+        }
 
         const orderData = await orderRes.json();
         if (!orderRes.ok) {
@@ -304,12 +317,18 @@ const TournamentDetails = () => {
                 },
                 body: JSON.stringify({
                   tournamentId: id,
-                  teamId: tournament.type === 'team' ? selectedTeamId : null,
+                  teamId: tournament.type !== 'solo' ? activeTeamId : null,
                   razorpay_order_id: response.razorpay_order_id,
                   razorpay_payment_id: response.razorpay_payment_id,
                   razorpay_signature: response.razorpay_signature
                 })
               });
+
+              const verifyContentType = verifyRes.headers.get('content-type');
+              if (!verifyContentType || !verifyContentType.includes('application/json')) {
+                throw new Error('Payment verification server error. Please contact support.');
+              }
+
               const verifyData = await verifyRes.json();
               if (!verifyRes.ok) {
                 throw new Error(verifyData.message || 'Payment verification failed');
@@ -340,8 +359,8 @@ const TournamentDetails = () => {
       } else {
         // Free tournament direct register
         const body = {};
-        if (tournament.type === 'team') {
-          body.teamId = selectedTeamId;
+        if (tournament.type !== 'solo') {
+          body.teamId = activeTeamId;
         }
 
         const res = await fetch(`${API_BASE_URL}/api/tournaments/${id}/join`, {
@@ -352,6 +371,11 @@ const TournamentDetails = () => {
           },
           body: JSON.stringify(body),
         });
+
+        const freeContentType = res.headers.get('content-type');
+        if (!freeContentType || !freeContentType.includes('application/json')) {
+          throw new Error('Registration server error. Please try again.');
+        }
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'Failed to join tournament');
@@ -741,7 +765,7 @@ const TournamentDetails = () => {
                       <div className="team-select-group">
                         <select 
                           className="form-control"
-                          value={selectedTeamId}
+                          value={selectedTeamId || (myTeams[0]?._id || '')}
                           onChange={(e) => setSelectedTeamId(e.target.value)}
                         >
                           {myTeams.map(t => (
