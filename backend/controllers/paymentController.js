@@ -37,10 +37,20 @@ const createOrder = async (req, res) => {
         return res.status(400).json({ message: 'Tournament is full' });
       }
     } else {
-      if (!teamId) {
+      let effectiveTeamId = teamId;
+      if (!effectiveTeamId || effectiveTeamId === 'null' || effectiveTeamId === 'undefined') {
+        const userTeam = await Team.findOne({
+          $or: [{ captain: req.user._id }, { members: req.user._id }]
+        }).sort({ createdAt: -1 });
+        if (userTeam) {
+          effectiveTeamId = userTeam._id.toString();
+        }
+      }
+
+      if (!effectiveTeamId) {
         return res.status(400).json({ message: 'Team ID is required for team-based tournaments' });
       }
-      const team = await Team.findById(teamId);
+      const team = await Team.findById(effectiveTeamId);
       if (!team) {
         return res.status(404).json({ message: 'Team not found' });
       }
@@ -58,12 +68,13 @@ const createOrder = async (req, res) => {
           return res.status(400).json({ message: `Team exceeds max limit of ${tournament.maxTeamMembers} members for this tournament (Selected team has ${team.members.length})` });
         }
       }
-      if (tournament.registeredTeams.some(id => id.toString() === teamId.toString())) {
+      if (tournament.registeredTeams.some(id => id.toString() === effectiveTeamId.toString())) {
         return res.status(400).json({ message: 'This team is already registered' });
       }
       if (tournament.registeredTeams.length >= tournament.maxTeams) {
         return res.status(400).json({ message: 'Tournament is full' });
       }
+      req.resolvedTeamId = effectiveTeamId;
     }
 
     if (tournament.entryFee <= 0) {
@@ -106,7 +117,7 @@ const createOrder = async (req, res) => {
     const payment = await Payment.create({
       tournament: tournamentId,
       user: req.user._id,
-      team: tournament.type !== 'solo' ? teamId : null,
+      team: tournament.type !== 'solo' ? (req.resolvedTeamId || teamId) : null,
       amount: tournament.entryFee,
       currency: 'INR',
       orderId: order.id,
@@ -179,7 +190,15 @@ const verifyPayment = async (req, res) => {
         tournament.registeredPlayers.push(payment.user);
       }
     } else {
-      const regTeamId = payment.team || req.body.teamId;
+      let regTeamId = payment.team || req.body.teamId;
+      if (!regTeamId) {
+        const userTeam = await Team.findOne({
+          $or: [{ captain: req.user._id }, { members: req.user._id }]
+        }).sort({ createdAt: -1 });
+        if (userTeam) {
+          regTeamId = userTeam._id;
+        }
+      }
       if (regTeamId && !tournament.registeredTeams.some(id => id.toString() === regTeamId.toString())) {
         tournament.registeredTeams.push(regTeamId);
       }
@@ -370,10 +389,20 @@ const payWithWallet = async (req, res) => {
         return res.status(400).json({ message: 'Tournament is full' });
       }
     } else {
-      if (!teamId) {
+      let effectiveTeamId = teamId;
+      if (!effectiveTeamId || effectiveTeamId === 'null' || effectiveTeamId === 'undefined') {
+        const userTeam = await Team.findOne({
+          $or: [{ captain: req.user._id }, { members: req.user._id }]
+        }).sort({ createdAt: -1 });
+        if (userTeam) {
+          effectiveTeamId = userTeam._id.toString();
+        }
+      }
+
+      if (!effectiveTeamId) {
         return res.status(400).json({ message: 'Team ID is required for team-based tournaments' });
       }
-      const team = await Team.findById(teamId);
+      const team = await Team.findById(effectiveTeamId);
       if (!team) {
         return res.status(404).json({ message: 'Team not found' });
       }
@@ -391,12 +420,13 @@ const payWithWallet = async (req, res) => {
           return res.status(400).json({ message: `Team exceeds max limit of ${tournament.maxTeamMembers} members for this tournament (Selected team has ${team.members.length})` });
         }
       }
-      if (tournament.registeredTeams.some(id => id.toString() === teamId.toString())) {
+      if (tournament.registeredTeams.some(id => id.toString() === effectiveTeamId.toString())) {
         return res.status(400).json({ message: 'This team is already registered' });
       }
       if (tournament.registeredTeams.length >= tournament.maxTeams) {
         return res.status(400).json({ message: 'Tournament is full' });
       }
+      req.resolvedTeamId = effectiveTeamId;
     }
 
     const Wallet = require('../models/Wallet');
@@ -419,10 +449,12 @@ const payWithWallet = async (req, res) => {
     });
     await wallet.save();
 
+    const finalTeamId = tournament.type !== 'solo' ? (req.resolvedTeamId || teamId) : null;
+
     await Payment.create({
       tournament: tournamentId,
       user: req.user._id,
-      team: tournament.type !== 'solo' ? teamId : null,
+      team: finalTeamId,
       amount: tournament.entryFee,
       currency: 'INR',
       orderId: refId,
@@ -435,8 +467,8 @@ const payWithWallet = async (req, res) => {
         tournament.registeredPlayers.push(req.user._id);
       }
     } else {
-      if (!tournament.registeredTeams.some(id => id.toString() === teamId.toString())) {
-        tournament.registeredTeams.push(teamId);
+      if (finalTeamId && !tournament.registeredTeams.some(id => id.toString() === finalTeamId.toString())) {
+        tournament.registeredTeams.push(finalTeamId);
       }
     }
     await tournament.save();

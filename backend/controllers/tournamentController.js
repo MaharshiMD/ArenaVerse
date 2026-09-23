@@ -470,17 +470,27 @@ const joinTournament = async (req, res) => {
       tournament.registeredPlayers.push(req.user._id);
     } else {
       // Team / Duo registration
-      if (!teamId) {
+      let effectiveTeamId = teamId;
+      if (!effectiveTeamId || effectiveTeamId === 'null' || effectiveTeamId === 'undefined') {
+        const userTeam = await Team.findOne({
+          $or: [{ captain: req.user._id }, { members: req.user._id }]
+        }).sort({ createdAt: -1 });
+        if (userTeam) {
+          effectiveTeamId = userTeam._id.toString();
+        }
+      }
+
+      if (!effectiveTeamId) {
         return res.status(400).json({ message: 'Team ID is required for team or duo tournaments' });
       }
 
-      const team = await Team.findById(teamId);
+      const team = await Team.findById(effectiveTeamId);
       if (!team) {
         return res.status(404).json({ message: 'Team not found' });
       }
 
       // Verify user is member of the team
-      if (!team.members.includes(req.user._id)) {
+      if (!team.members.some(m => m.toString() === req.user._id.toString())) {
         return res.status(400).json({ message: 'You must be a member of the team to register it' });
       }
 
@@ -497,7 +507,7 @@ const joinTournament = async (req, res) => {
         }
       }
 
-      if (tournament.registeredTeams.includes(teamId)) {
+      if (tournament.registeredTeams.some(id => id.toString() === effectiveTeamId.toString())) {
         return res.status(400).json({ message: 'This team is already registered' });
       }
 
@@ -505,7 +515,7 @@ const joinTournament = async (req, res) => {
         return res.status(400).json({ message: 'Tournament is full' });
       }
 
-      tournament.registeredTeams.push(teamId);
+      tournament.registeredTeams.push(effectiveTeamId);
     }
 
     await tournament.save();
