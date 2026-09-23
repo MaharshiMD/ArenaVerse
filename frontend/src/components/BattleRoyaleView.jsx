@@ -106,19 +106,21 @@ const BattleRoyaleView = ({ tournament, isOrganizer, getAuthHeader, onResultsUpd
     e.preventDefault();
     setEntryError('');
 
-    // Validate placements
+    // Validate placements (can be any value from 0 to 12)
     const usedPlacements = new Set();
     for (const row of entryResults) {
       const p = Number(row.placement);
-      if (!p || p < 1 || p > entryResults.length) {
-        setEntryError(`Each team must have a valid placement between 1 and ${entryResults.length}.`);
+      if (isNaN(p) || p < 0 || p > 12) {
+        setEntryError('Each team placement must be a number between 0 and 12.');
         return;
       }
-      if (usedPlacements.has(p)) {
-        setEntryError(`Duplicate placement #${p} found. Every team must have a unique rank.`);
+      if (p > 0 && usedPlacements.has(p)) {
+        setEntryError(`Duplicate placement #${p} found. Active teams must have unique ranks from 1 to 12 (or 0 for unranked/DNF).`);
         return;
       }
-      usedPlacements.add(p);
+      if (p > 0) {
+        usedPlacements.add(p);
+      }
       if (Number(row.kills) < 0) {
         setEntryError('Kills cannot be negative.');
         return;
@@ -454,7 +456,7 @@ const BattleRoyaleView = ({ tournament, isOrganizer, getAuthHeader, onResultsUpd
                   🔥 Enter Match #{editingMatch.matchNumber} Results
                 </h3>
                 <span className="text-xs text-muted">
-                  Map: {editingMatch.mapName} &bull; Enter Placements (1-12) and Kills for each squad
+                  Map: {editingMatch.mapName} &bull; Enter Placements (0-12) and Kills for each squad
                 </span>
               </div>
               <button className="modal-close" onClick={() => setEditingMatch(null)}>&times;</button>
@@ -477,7 +479,7 @@ const BattleRoyaleView = ({ tournament, isOrganizer, getAuthHeader, onResultsUpd
                   <thead>
                     <tr>
                       <th style={{ width: '40%' }}>Team Name</th>
-                      <th style={{ width: '20%', textAlign: 'center' }}>Placement (1-12)</th>
+                      <th style={{ width: '20%', textAlign: 'center' }}>Placement (0-12)</th>
                       <th style={{ width: '20%', textAlign: 'center' }}>Kills</th>
                       <th style={{ width: '20%', textAlign: 'center' }}>Live Points</th>
                     </tr>
@@ -493,8 +495,8 @@ const BattleRoyaleView = ({ tournament, isOrganizer, getAuthHeader, onResultsUpd
                           <td style={{ textAlign: 'center' }}>
                             <input
                               type="number"
-                              min="1"
-                              max={entryResults.length}
+                              min="0"
+                              max="12"
                               className="form-control"
                               style={{ width: '80px', margin: '0 auto', textAlign: 'center', padding: '6px' }}
                               value={row.placement}
@@ -503,7 +505,7 @@ const BattleRoyaleView = ({ tournament, isOrganizer, getAuthHeader, onResultsUpd
                                 updated[idx].placement = e.target.value === '' ? '' : Number(e.target.value);
                                 setEntryResults(updated);
                               }}
-                              placeholder="1-12"
+                              placeholder="0-12"
                               required
                             />
                           </td>
