@@ -1,7 +1,21 @@
 const mongoose = require('mongoose');
 
 const WalletTransactionSchema = new mongoose.Schema({
-  type: { type: String, enum: ['deposit', 'withdraw', 'withdrawal', 'prize_payout', 'tournament_fee'], required: true },
+  type: { 
+    type: String, 
+    enum: [
+      'deposit', 
+      'withdraw', 
+      'withdrawal', 
+      'prize_payout', 
+      'tournament_fee',
+      'p2p_transfer_sent',
+      'p2p_transfer_received',
+      'transfer_sent',
+      'transfer_received'
+    ], 
+    required: true 
+  },
   amount: { type: Number, required: true },
   description: { type: String, default: '' },
   referenceId: { type: String, default: '' },

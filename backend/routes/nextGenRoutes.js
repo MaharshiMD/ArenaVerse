@@ -13,6 +13,7 @@ const {
   getWallet,
   depositWallet,
   withdrawWallet,
+  transferWalletFunds,
   getTournamentQRCode,
   scanQRCheckIn,
   getTemplates,
@@ -44,6 +45,7 @@ router.post('/direct-messages', protect, sendDirectMessage);
 router.get('/wallet', protect, getWallet);
 router.post('/wallet/deposit', protect, depositWallet);
 router.post('/wallet/withdraw', protect, withdrawWallet);
+router.post('/wallet/transfer', protect, transferWalletFunds);
 
 // QR Code Check-In
 router.get('/tournaments/:id/qr-code', protect, getTournamentQRCode);

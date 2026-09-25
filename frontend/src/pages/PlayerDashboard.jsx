@@ -599,11 +599,27 @@ const PlayerDashboard = () => {
                         <div className="w-full mt-1 mb-2">
                           <span className="text-secondary text-xs block mb-1"><strong>Squad Members ({team.members.length} / {team.maxMembers || 5}):</strong></span>
                           <div className="flex flex-wrap gap-1">
-                            {team.members.map(m => (
-                              <span key={m._id} className="badge badge-draft text-xs mr-1 mb-1" style={{ display: 'inline-block', padding: '2px 8px' }}>
-                                {m.username} {m._id.toString() === (team.captain._id || team.captain).toString() ? '👑' : ''}
-                              </span>
-                            ))}
+                            {team.members.map(m => {
+                              const mId = (m._id || m).toString();
+                              const isCap = mId === (team.captain?._id || team.captain)?.toString();
+                              const isMe = mId === (user?.id || user?._id)?.toString();
+                              return (
+                                <div key={m._id} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: 'rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: '6px', margin: '2px' }}>
+                                  <span className="text-xs text-white" style={{ fontWeight: 500 }}>
+                                    {m.username} {isCap ? '👑' : ''}
+                                  </span>
+                                  {!isMe && (
+                                    <Link
+                                      to={`/wallet?recipientId=${m._id}&teamId=${team._id}&username=${m.username}`}
+                                      style={{ color: '#10b981', fontSize: '11px', fontWeight: 'bold', textDecoration: 'none', marginLeft: '3px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+                                      title={`Transfer funds to @${m.username}`}
+                                    >
+                                      💸 Send ₹
+                                    </Link>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
 

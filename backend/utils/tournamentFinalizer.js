@@ -29,6 +29,20 @@ const deliverPrizeToWallet = async (tournament, userId, amount, position, detail
       wallet = await Wallet.create({ user: userId, balance: 0, transactions: [] });
     }
 
+    // Secondary check: verify wallet does not already contain payout for this tournament
+    const tourneyIdSuffix = tournament._id ? tournament._id.toString().slice(-6) : '';
+    const alreadyCredited = wallet.transactions.some(tx => 
+      tx.type === 'prize_payout' &&
+      (
+        (tourneyIdSuffix && tx.referenceId?.includes(tourneyIdSuffix)) ||
+        (tournament.name && tx.description?.includes(tournament.name) && tx.description?.includes(`Position ${position}`))
+      )
+    );
+    if (alreadyCredited) {
+      console.log(`[Payout] Wallet for user ${userId} already credited for tournament "${tournament.name}" position ${position}. Skipping duplicate.`);
+      return null;
+    }
+
     const numericAmount = Number(amount);
     wallet.balance += numericAmount;
     const refId = `PRIZE_${Date.now()}_${tournament._id.toString().slice(-6)}_${userId.toString().slice(-6)}`;
@@ -118,7 +132,9 @@ const finalizeTournamentCompletion = async (tournamentId, { winnerId, loserId, b
     let winnerCaptainId = null;
     let runnerCaptainId = null;
 
-    if (existingPayoutsCount === 0) {
+    const hasAlreadyPaidPrizes = existingPayoutsCount > 0 || tournament.prizePoolStatus === 'PRIZES_PAID';
+
+    if (!hasAlreadyPaidPrizes) {
       // Remove any previously recorded results for this tournament to ensure fresh accurate state
       await TournamentResult.deleteMany({ tournament: tournament._id });
 

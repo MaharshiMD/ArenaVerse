@@ -1,13 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
-import { Wallet, ArrowDownRight, ArrowUpRight, Coins, RefreshCw, CreditCard, ShieldCheck, CheckCircle2, Zap } from 'lucide-react';
+import { useSearchParams, Link } from 'react-router-dom';
+import { 
+  Wallet, 
+  ArrowDownRight, 
+  ArrowUpRight, 
+  Coins, 
+  RefreshCw, 
+  CreditCard, 
+  ShieldCheck, 
+  CheckCircle2, 
+  Zap, 
+  Users, 
+  Send, 
+  ArrowRightLeft, 
+  UserCheck, 
+  Shield, 
+  ChevronRight 
+} from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import './ArenaWallet.css';
 
 const ArenaWallet = () => {
   const { user, getAuthHeader } = useAuth();
   const socket = useSocket();
+  const [searchParams] = useSearchParams();
+
   const [wallet, setWallet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [depositAmount, setDepositAmount] = useState('500');
@@ -16,9 +35,41 @@ const ArenaWallet = () => {
   const [actionMessage, setActionMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Teammate & Squad Money Transfer State
+  const [myTeams, setMyTeams] = useState([]);
+  const [selectedTeamId, setSelectedTeamId] = useState(searchParams.get('teamId') || '');
+  const [selectedMemberId, setSelectedMemberId] = useState(searchParams.get('recipientId') || '');
+  const [transferUsername, setTransferUsername] = useState(searchParams.get('username') || '');
+  const [transferMode, setTransferMode] = useState(searchParams.get('recipientId') || !searchParams.get('username') ? 'team' : 'username');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferNote, setTransferNote] = useState('');
+  const [transferProcessing, setTransferProcessing] = useState(false);
+  const [transferReceipt, setTransferReceipt] = useState(null);
+
   useEffect(() => {
     fetchWallet();
+    fetchMyTeams();
   }, []);
+
+  const fetchMyTeams = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/teams/my`, {
+        headers: getAuthHeader(),
+      });
+      if (res.ok) {
+        const teamsData = await res.json();
+        setMyTeams(teamsData || []);
+        if (teamsData && teamsData.length > 0 && !selectedTeamId) {
+          const prefillTeam = searchParams.get('teamId') 
+            ? teamsData.find(t => t._id === searchParams.get('teamId')) 
+            : teamsData[0];
+          setSelectedTeamId(prefillTeam ? prefillTeam._id : teamsData[0]._id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load user squads:', err);
+    }
+  };
 
   const fetchWallet = async () => {
     try {
@@ -219,6 +270,70 @@ const ArenaWallet = () => {
     }
   };
 
+  const handleTransferFunds = async (e) => {
+    e.preventDefault();
+    setActionMessage('');
+    const amt = Number(transferAmount);
+    if (!amt || amt <= 0) {
+      setActionMessage('⚠️ Please enter a valid transfer amount.');
+      return;
+    }
+    if (wallet && wallet.balance < amt) {
+      setActionMessage(`⚠️ Insufficient wallet balance. You have ₹${wallet.balance}, but tried to transfer ₹${amt}.`);
+      return;
+    }
+    if (transferMode === 'team' && !selectedMemberId) {
+      setActionMessage('⚠️ Please select a team member from your squad to receive the funds.');
+      return;
+    }
+    if (transferMode === 'username' && !transferUsername.trim()) {
+      setActionMessage('⚠️ Please enter the recipient player username.');
+      return;
+    }
+
+    setTransferProcessing(true);
+    try {
+      const payload = {
+        amount: amt,
+        note: transferNote,
+        teamId: selectedTeamId || undefined,
+      };
+      if (transferMode === 'team') {
+        payload.recipientId = selectedMemberId;
+      } else {
+        payload.recipientUsername = transferUsername.trim();
+      }
+
+      const res = await fetch(`${API_BASE_URL}/api/nextgen/wallet/transfer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Transfer failed');
+
+      setWallet(data.wallet);
+      setTransferReceipt(data);
+      setActionMessage(`🎉 Successfully transferred ₹${amt} to @${data.recipient?.username}!`);
+      setTransferAmount('');
+      setTransferNote('');
+    } catch (err) {
+      setActionMessage(`⚠️ ${err.message}`);
+    } finally {
+      setTransferProcessing(false);
+    }
+  };
+
+  const currentSelectedTeam = myTeams.find(t => t._id === selectedTeamId);
+  const currentTeamTeammates = (currentSelectedTeam?.members || []).filter(
+    m => (m._id || m).toString() !== (user?.id || user?._id)?.toString()
+  );
+  const selectedTeammateObj = currentTeamTeammates.find(m => (m._id || m).toString() === selectedMemberId);
+
   if (loading) {
     return <div className="text-center py-5 mt-5"><p className="text-secondary text-sm">Loading Arena Wallet...</p></div>;
   }
@@ -338,6 +453,206 @@ const ArenaWallet = () => {
         </div>
       </div>
 
+      {/* Teammate & Squad Money Transfer Section */}
+      <div className="glass-panel p-4 mb-4" style={{ borderRadius: '16px', border: '1px solid rgba(16, 185, 129, 0.35)', background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(139, 92, 246, 0.08))' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+          <div>
+            <h3 className="text-white font-bold m-0 flex items-center gap-2" style={{ fontSize: '1.25rem' }}>
+              <Users className="text-success" size={22} /> Squad & Teammate Money Transfer
+            </h3>
+            <p className="text-secondary text-xs m-0 mt-1">
+              Easily distribute tournament prize winnings or send funds to any specific teammate or squad member instantly.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              type="button"
+              className={`btn btn-sm ${transferMode === 'team' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setTransferMode('team')}
+              style={{ fontSize: '0.75rem', padding: '5px 12px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Users size={13} /> Select From Squads
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${transferMode === 'username' ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setTransferMode('username')}
+              style={{ fontSize: '0.75rem', padding: '5px 12px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Send size={13} /> Transfer by Username
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleTransferFunds}>
+          {transferMode === 'team' ? (
+            <div className="grid-2 gap-4 mb-3">
+              {/* Squad Selector */}
+              <div className="form-group">
+                <label className="form-label text-xs text-secondary font-bold">1. Select Squad</label>
+                {myTeams.length === 0 ? (
+                  <p className="text-muted text-xs p-2" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                    You have not joined any squads yet. You can switch to "Transfer by Username" to send funds!
+                  </p>
+                ) : (
+                  <select
+                    className="form-control"
+                    value={selectedTeamId}
+                    onChange={(e) => {
+                      setSelectedTeamId(e.target.value);
+                      setSelectedMemberId('');
+                    }}
+                    style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px' }}
+                  >
+                    {myTeams.map(t => (
+                      <option key={t._id} value={t._id}>
+                        {t.name} ({t.members.length} members)
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Teammates List */}
+              <div className="form-group">
+                <label className="form-label text-xs text-secondary font-bold">
+                  2. Choose Specific Teammate <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                {currentTeamTeammates.length === 0 ? (
+                  <p className="text-muted text-xs p-2" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                    No other players in this squad. Switch to "Transfer by Username" above.
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {currentTeamTeammates.map(m => {
+                      const isCap = (currentSelectedTeam?.captain?._id || currentSelectedTeam?.captain)?.toString() === m._id.toString();
+                      const isSelected = selectedMemberId === m._id;
+                      return (
+                        <button
+                          key={m._id}
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => setSelectedMemberId(m._id)}
+                          style={{
+                            background: isSelected ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255,255,255,0.05)',
+                            color: isSelected ? '#10b981' : '#e2e8f0',
+                            border: isSelected ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '8px',
+                            padding: '6px 12px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>
+                            {m.username.charAt(0).toUpperCase()}
+                          </div>
+                          <span>@{m.username}</span>
+                          {isCap && <span style={{ fontSize: '10px', color: '#f59e0b' }}>👑 Captain</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="form-group mb-3">
+              <label className="form-label text-xs text-secondary font-bold">Recipient Player Username <span style={{ color: '#ef4444' }}>*</span></label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Enter exact gamer username (e.g. Mouse, DuoEnough, Ujjas)"
+                value={transferUsername}
+                onChange={e => setTransferUsername(e.target.value)}
+                style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px' }}
+                required
+              />
+            </div>
+          )}
+
+          {/* Amount and Note */}
+          <div className="grid-2 gap-4 mb-3">
+            <div className="form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label className="form-label text-xs text-secondary font-bold m-0">Transfer Amount (₹) <span style={{ color: '#ef4444' }}>*</span></label>
+                <span className="text-muted text-xs">Available: ₹{(wallet?.balance || 0).toLocaleString('en-IN')}</span>
+              </div>
+              <input
+                type="number"
+                className="form-control"
+                placeholder="Enter amount to transfer"
+                value={transferAmount}
+                onChange={e => setTransferAmount(e.target.value)}
+                min={1}
+                max={wallet?.balance || 0}
+                style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px' }}
+                required
+              />
+              {/* Quick Split Buttons */}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                {[
+                  { label: '₹100', val: 100 },
+                  { label: '₹500', val: 500 },
+                  { label: '₹1,000', val: 1000 },
+                  { label: '25% Prize', val: Math.floor((wallet?.balance || 0) * 0.25) },
+                  { label: '50% Split', val: Math.floor((wallet?.balance || 0) * 0.5) },
+                  { label: 'Full Balance', val: wallet?.balance || 0 },
+                ].filter(b => b.val > 0 && b.val <= (wallet?.balance || 0)).map(chip => (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setTransferAmount(chip.val.toString())}
+                    style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '6px', background: 'rgba(255,255,255,0.06)' }}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label text-xs text-secondary font-bold">Transfer Note / Reason (Optional)</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="e.g. 50% Prize Pool Split - Grand Finals Victory"
+                value={transferNote}
+                onChange={e => setTransferNote(e.target.value)}
+                style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px' }}
+              />
+              <small className="text-muted text-xs mt-1 block">
+                This note will be recorded in both players' transaction records and notifications.
+              </small>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={transferProcessing || !transferAmount || Number(transferAmount) <= 0 || (transferMode === 'team' && !selectedMemberId && currentTeamTeammates.length > 0) || (transferMode === 'username' && !transferUsername.trim())}
+              style={{
+                background: '#10b981',
+                borderColor: '#10b981',
+                padding: '8px 24px',
+                fontSize: '0.9rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                borderRadius: '8px'
+              }}
+            >
+              <Send size={15} />
+              <span>{transferProcessing ? 'Transferring...' : `Transfer ₹${Number(transferAmount) || 0} to Teammate`}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
       {/* Razorpay Payout Success Modal */}
       {payoutReceipt && (
         <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -374,6 +689,50 @@ const ArenaWallet = () => {
         </div>
       )}
 
+      {/* Teammate Money Transfer Receipt Modal */}
+      {transferReceipt && (
+        <div className="modal-backdrop" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-panel p-5 text-center flex-col" style={{ width: '480px', maxWidth: '90vw', border: '1px solid rgba(16, 185, 129, 0.5)', borderRadius: '16px' }}>
+            <div style={{ margin: '0 auto 12px auto', width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircle2 size={32} className="text-success" />
+            </div>
+            <h2 className="text-white font-extrabold text-lg mb-1">Transfer Complete!</h2>
+            <p className="text-secondary text-xs mb-4">Funds were instantly delivered to your teammate's Arena Wallet.</p>
+
+            <div className="glass-panel p-3 mb-4 text-left flex-col gap-2" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                <span className="text-muted">Transferred Amount:</span>
+                <strong className="text-success font-bold" style={{ fontSize: '14px' }}>₹{transferReceipt.amount}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                <span className="text-muted">Recipient Teammate:</span>
+                <strong className="text-white">@{transferReceipt.recipient?.username}</strong>
+              </div>
+              {transferReceipt.teamName && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                  <span className="text-muted">Squad:</span>
+                  <span className="text-primary font-bold">{transferReceipt.teamName}</span>
+                </div>
+              )}
+              {transferReceipt.note && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                  <span className="text-muted">Note:</span>
+                  <span className="text-secondary italic">"{transferReceipt.note}"</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                <span className="text-muted">Transaction ID:</span>
+                <span className="text-warning text-xs">{transferReceipt.referenceId}</span>
+              </div>
+            </div>
+
+            <button className="btn btn-primary w-full text-xs" onClick={() => setTransferReceipt(null)}>
+              Close Receipt
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Transaction History */}
       <div className="glass-panel p-4" style={{ borderRadius: '16px' }}>
         <h3 className="text-white font-bold mb-3 flex items-center gap-2">
@@ -395,12 +754,18 @@ const ArenaWallet = () => {
               </thead>
               <tbody>
                 {wallet.transactions.slice().reverse().map((txn, idx) => {
-                  const isCredit = txn.type === 'deposit' || txn.type === 'prize_payout';
+                  const isCredit = txn.type === 'deposit' || txn.type === 'prize_payout' || txn.type === 'p2p_transfer_received' || txn.type === 'transfer_received';
+                  const typeLabel = txn.type === 'p2p_transfer_received' || txn.type === 'transfer_received'
+                    ? 'TRANSFER IN'
+                    : txn.type === 'p2p_transfer_sent' || txn.type === 'transfer_sent'
+                    ? 'TRANSFER OUT'
+                    : txn.type.toUpperCase();
+
                   return (
                     <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                       <td style={{ padding: '10px' }}>
                         <span className={`badge ${isCredit ? 'badge-published' : 'badge-draft'}`} style={{ fontSize: '0.7rem' }}>
-                          {txn.type.toUpperCase()}
+                          {typeLabel}
                         </span>
                       </td>
                       <td style={{ padding: '10px' }} className="text-white text-xs">{txn.description}</td>

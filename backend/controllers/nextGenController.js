@@ -271,6 +271,149 @@ const withdrawWallet = async (req, res) => {
   }
 };
 
+// Transfer money directly to a specific team member / squadmate
+const transferWalletFunds = async (req, res) => {
+  try {
+    const { recipientId, recipientUsername, amount, teamId, note } = req.body;
+    const transferAmount = Number(amount);
+
+    if (!transferAmount || transferAmount <= 0) {
+      return res.status(400).json({ message: 'Please enter a valid transfer amount greater than ₹0.' });
+    }
+
+    if (transferAmount < 1) {
+      return res.status(400).json({ message: 'Minimum transfer amount is ₹1.' });
+    }
+
+    // 1. Locate recipient user
+    let recipientUser = null;
+    if (recipientId) {
+      recipientUser = await User.findById(recipientId);
+    } else if (recipientUsername) {
+      recipientUser = await User.findOne({ username: recipientUsername.trim() });
+    }
+
+    if (!recipientUser) {
+      return res.status(404).json({ message: 'Recipient player not found. Please select a valid team member or enter an existing username.' });
+    }
+
+    const senderId = (req.user._id || req.user.id).toString();
+    const targetRecipientId = (recipientUser._id || recipientUser.id).toString();
+
+    if (senderId === targetRecipientId) {
+      return res.status(400).json({ message: 'You cannot transfer funds to yourself.' });
+    }
+
+    // 2. Fetch sender wallet
+    let senderWallet = await Wallet.findOne({ user: senderId });
+    if (!senderWallet || senderWallet.balance < transferAmount) {
+      return res.status(400).json({ 
+        message: `Insufficient wallet balance. You have ₹${senderWallet?.balance || 0}, but tried to transfer ₹${transferAmount}.` 
+      });
+    }
+
+    // 3. Optional Team Context
+    let teamName = '';
+    if (teamId) {
+      const teamDoc = await Team.findById(teamId);
+      if (teamDoc) teamName = teamDoc.name;
+    }
+
+    // 4. Fetch or create recipient wallet
+    let recipientWallet = await Wallet.findOne({ user: targetRecipientId });
+    if (!recipientWallet) {
+      recipientWallet = await Wallet.create({ user: targetRecipientId, balance: 0, transactions: [] });
+    }
+
+    const txTimestamp = Date.now();
+    const sentRefId = `TRF_OUT_${txTimestamp}_${senderId.slice(-4)}_${targetRecipientId.slice(-4)}`;
+    const rcvRefId = `TRF_IN_${txTimestamp}_${senderId.slice(-4)}_${targetRecipientId.slice(-4)}`;
+
+    const sanitizedNote = (note || '').trim();
+    const noteSuffix = sanitizedNote ? ` ("${sanitizedNote}")` : '';
+    const teamSuffix = teamName ? ` [Squad: ${teamName}]` : '';
+
+    // 5. Deduct from sender
+    senderWallet.balance -= transferAmount;
+    senderWallet.transactions.push({
+      type: 'p2p_transfer_sent',
+      amount: transferAmount,
+      description: `Transferred ₹${transferAmount} to @${recipientUser.username}${teamSuffix}${noteSuffix}`,
+      referenceId: sentRefId,
+      status: 'completed',
+      createdAt: new Date(),
+    });
+    await senderWallet.save();
+
+    // 6. Credit to recipient
+    recipientWallet.balance += transferAmount;
+    recipientWallet.transactions.push({
+      type: 'p2p_transfer_received',
+      amount: transferAmount,
+      description: `Received ₹${transferAmount} from @${req.user.username}${teamSuffix}${noteSuffix}`,
+      referenceId: rcvRefId,
+      status: 'completed',
+      createdAt: new Date(),
+    });
+    await recipientWallet.save();
+
+    // 7. Notification for recipient
+    const { createNotification } = require('../utils/notificationHelper');
+    const io = req.app.get('io');
+    await createNotification({
+      recipient: recipientUser._id,
+      sender: req.user._id,
+      type: 'wallet_transfer',
+      title: `💰 Funds Received: ₹${transferAmount}`,
+      message: `@${req.user.username} transferred ₹${transferAmount} directly to your Arena Wallet${teamName ? ` for squad "${teamName}"` : ''}!${sanitizedNote ? ` Message: "${sanitizedNote}"` : ''}`,
+      link: '/wallet',
+      io,
+    });
+
+    // 8. WebSocket emit for real-time live balance update
+    if (io) {
+      io.to(`user_${targetRecipientId}`).emit('wallet_updated', {
+        balanceChange: transferAmount,
+        type: 'received',
+        sender: req.user.username,
+        message: `Received ₹${transferAmount} from @${req.user.username}!`,
+      });
+      io.emit('wallet_updated', {
+        userId: targetRecipientId,
+        balanceChange: transferAmount,
+      });
+
+      io.to(`user_${senderId}`).emit('wallet_updated', {
+        balanceChange: -transferAmount,
+        type: 'sent',
+        recipient: recipientUser.username,
+        message: `Transferred ₹${transferAmount} to @${recipientUser.username}!`,
+      });
+      io.emit('wallet_updated', {
+        userId: senderId,
+        balanceChange: -transferAmount,
+      });
+    }
+
+    res.json({
+      message: `🎉 Successfully transferred ₹${transferAmount} to @${recipientUser.username}!`,
+      wallet: senderWallet,
+      recipient: {
+        id: recipientUser._id,
+        username: recipientUser.username,
+        email: recipientUser.email,
+      },
+      amount: transferAmount,
+      referenceId: sentRefId,
+      note: sanitizedNote,
+      teamName,
+    });
+  } catch (error) {
+    console.error('[Wallet Transfer Error]:', error);
+    res.status(500).json({ message: error.message || 'Failed to complete wallet transfer.' });
+  }
+};
+
 // 5. QR Code Check-In
 const getTournamentQRCode = async (req, res) => {
   try {
@@ -479,6 +622,7 @@ module.exports = {
   getWallet,
   depositWallet,
   withdrawWallet,
+  transferWalletFunds,
   getTournamentQRCode,
   scanQRCheckIn,
   getTemplates,

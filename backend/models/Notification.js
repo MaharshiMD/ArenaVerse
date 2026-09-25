@@ -27,6 +27,7 @@ const notificationSchema = new mongoose.Schema(
         'tournament_winner',
         'prize_received',
         'tournament_completed',
+        'wallet_transfer',
       ],
       required: true,
     },
