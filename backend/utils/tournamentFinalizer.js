@@ -249,7 +249,12 @@ const finalizeTournamentCompletion = async (tournamentId, { winnerId, loserId, b
             // Update winner team stats (for Hall of Fame & rankings)
             winnerTeam.stats = winnerTeam.stats || {};
             winnerTeam.stats.wins = (winnerTeam.stats.wins || 0) + 1;
+            winnerTeam.stats.totalTournaments = (winnerTeam.stats.totalTournaments || 0) + 1;
             winnerTeam.stats.matchesPlayed = (winnerTeam.stats.matchesPlayed || 0) + 1;
+            winnerTeam.stats.prizeMoney = (winnerTeam.stats.prizeMoney || 0) + prize1st;
+            winnerTeam.stats.winRate = winnerTeam.stats.totalTournaments > 0 
+              ? Math.round((winnerTeam.stats.wins / winnerTeam.stats.totalTournaments) * 100) 
+              : 100;
             await winnerTeam.save();
           }
         }
@@ -297,7 +302,12 @@ const finalizeTournamentCompletion = async (tournamentId, { winnerId, loserId, b
 
             loserTeam.stats = loserTeam.stats || {};
             loserTeam.stats.losses = (loserTeam.stats.losses || 0) + 1;
+            loserTeam.stats.totalTournaments = (loserTeam.stats.totalTournaments || 0) + 1;
             loserTeam.stats.matchesPlayed = (loserTeam.stats.matchesPlayed || 0) + 1;
+            loserTeam.stats.prizeMoney = (loserTeam.stats.prizeMoney || 0) + prize2nd;
+            loserTeam.stats.winRate = loserTeam.stats.totalTournaments > 0 
+              ? Math.round(((loserTeam.stats.wins || 0) / loserTeam.stats.totalTournaments) * 100) 
+              : 0;
             await loserTeam.save();
           }
         }
@@ -309,7 +319,9 @@ const finalizeTournamentCompletion = async (tournamentId, { winnerId, loserId, b
             const otherTeam = await Team.findById(entry.teamId).populate('members');
             if (otherTeam) {
               otherTeam.stats = otherTeam.stats || {};
+              otherTeam.stats.totalTournaments = (otherTeam.stats.totalTournaments || 0) + 1;
               otherTeam.stats.matchesPlayed = (otherTeam.stats.matchesPlayed || 0) + 1;
+              otherTeam.stats.losses = (otherTeam.stats.losses || 0) + 1;
               await otherTeam.save();
 
               for (const m of otherTeam.members) {
@@ -331,7 +343,9 @@ const finalizeTournamentCompletion = async (tournamentId, { winnerId, loserId, b
               const otherTeam = await Team.findById(tId).populate('members');
               if (otherTeam) {
                 otherTeam.stats = otherTeam.stats || {};
+                otherTeam.stats.totalTournaments = (otherTeam.stats.totalTournaments || 0) + 1;
                 otherTeam.stats.matchesPlayed = (otherTeam.stats.matchesPlayed || 0) + 1;
+                otherTeam.stats.losses = (otherTeam.stats.losses || 0) + 1;
                 await otherTeam.save();
 
                 for (const m of otherTeam.members) {

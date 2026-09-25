@@ -60,6 +60,8 @@ const TeamSchema = new mongoose.Schema(
     stats: {
       totalTournaments: { type: Number, default: 0 },
       wins: { type: Number, default: 0 },
+      losses: { type: Number, default: 0 },
+      matchesPlayed: { type: Number, default: 0 },
       winRate: { type: Number, default: 0 },
       averagePlacement: { type: Number, default: 0 },
       prizeMoney: { type: Number, default: 0 },
