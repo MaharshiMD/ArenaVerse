@@ -20,6 +20,8 @@ const {
   createTemplate,
   getHallOfFame,
   getEsportsNews,
+  createEsportsNews,
+  regenerateNewsVideo,
   generateAIMatchSummary,
   getAIRecommendations,
   getAdminPlatformAnalytics,
@@ -58,6 +60,8 @@ router.post('/templates', protect, authorize('organizer', 'admin'), createTempla
 // Hall of Fame & Esports News
 router.get('/hall-of-fame', optionalAuth, getHallOfFame);
 router.get('/esports-news', optionalAuth, getEsportsNews);
+router.post('/esports-news', protect, createEsportsNews);
+router.post('/esports-news/:id/regenerate-video', protect, regenerateNewsVideo);
 
 // AI Features
 router.post('/ai-match-summary', protect, generateAIMatchSummary);

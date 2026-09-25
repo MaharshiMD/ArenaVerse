@@ -13,6 +13,7 @@ const LoginHistory = require('../models/LoginHistory');
 const EsportsNews = require('../models/EsportsNews');
 const QRCode = require('qrcode');
 const { buildGameRegex } = require('../utils/gameUtils');
+const { generateNewsVideoPreview } = require('../utils/newsVideoGenerator');
 
 // 1. LFT & LFP
 const getLFTPosts = async (req, res) => {
@@ -539,6 +540,64 @@ const getEsportsNews = async (req, res) => {
   }
 };
 
+const createEsportsNews = async (req, res) => {
+  try {
+    const { title, game, source, summary, fullContent, url } = req.body;
+
+    if (!title || !game || !summary || !fullContent) {
+      return res.status(400).json({ message: 'Title, game, summary, and full content are required' });
+    }
+
+    console.log(`[EsportsNews] Generating AI Video & Audio Preview for new article: "${title}"...`);
+    const videoPreview = await generateNewsVideoPreview({
+      title,
+      game,
+      summary,
+      fullContent
+    });
+
+    const article = await EsportsNews.create({
+      title,
+      game,
+      source: source || 'ArenaVerse Official',
+      summary,
+      fullContent,
+      url: url || '',
+      date: new Date(),
+      status: 'published',
+      videoPreview
+    });
+
+    console.log(`[EsportsNews] Created article with stored AI video & audio preview in DB: ${article._id}`);
+    res.status(201).json(article);
+  } catch (error) {
+    console.error('[EsportsNews] Error creating article:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const regenerateNewsVideo = async (req, res) => {
+  try {
+    const article = await EsportsNews.findById(req.params.id);
+    if (!article) return res.status(404).json({ message: 'Article not found' });
+
+    console.log(`[EsportsNews] Regenerating AI video preview for article ${article._id}...`);
+    const videoPreview = await generateNewsVideoPreview({
+      title: article.title,
+      game: article.game,
+      summary: article.summary,
+      fullContent: article.fullContent
+    });
+
+    article.videoPreview = videoPreview;
+    await article.save();
+
+    res.json({ message: 'Video preview generated and saved to database successfully', videoPreview });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // 9. AI Match Summary & Recommendations
 const generateAIMatchSummary = async (req, res) => {
   try {
@@ -638,6 +697,8 @@ module.exports = {
   createTemplate,
   getHallOfFame,
   getEsportsNews,
+  createEsportsNews,
+  regenerateNewsVideo,
   generateAIMatchSummary,
   getAIRecommendations,
   getAdminPlatformAnalytics,

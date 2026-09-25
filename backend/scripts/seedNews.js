@@ -1,4 +1,6 @@
 require('dotenv').config();
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 const mongoose = require('mongoose');
 const EsportsNews = require('../models/EsportsNews');
 
@@ -71,6 +73,8 @@ Registration Details:
   }
 ];
 
+const { generateNewsVideoPreview } = require('../utils/newsVideoGenerator');
+
 const seedDatabase = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
@@ -83,9 +87,26 @@ const seedDatabase = async () => {
     await EsportsNews.deleteMany({});
     console.log('Cleared existing EsportsNews data.');
 
-    // Insert new data
-    await EsportsNews.insertMany(seedNewsData);
-    console.log('Successfully seeded EsportsNews data into the database!');
+    // Generate AI Video Preview with Audio and VFX for each article
+    console.log('Generating AI Video Previews (Audio + VFX) for news articles...');
+    const articlesWithVideo = [];
+    for (const item of seedNewsData) {
+      console.log(`Generating AI video preview for: ${item.title.substring(0, 45)}...`);
+      const videoPreview = await generateNewsVideoPreview({
+        title: item.title,
+        game: item.game,
+        summary: item.summary,
+        fullContent: item.fullContent,
+      });
+      articlesWithVideo.push({
+        ...item,
+        videoPreview,
+      });
+    }
+
+    // Insert new data with pre-rendered video previews
+    await EsportsNews.insertMany(articlesWithVideo);
+    console.log('Successfully seeded EsportsNews data with stored AI Video Previews into the database!');
 
     process.exit(0);
   } catch (error) {
