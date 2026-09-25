@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { PlusCircle, Trophy, Edit, Trash2, Globe, Eye, Settings, ShieldAlert, Upload, X, BarChart3, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { PlusCircle, Trophy, Edit, Trash2, Globe, Eye, Settings, ShieldAlert, Upload, X, BarChart3, ShieldCheck, CheckCircle2, Radio, Tv, Film, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import OrganizerAnalytics from '../components/OrganizerAnalytics';
 import VerificationModal from '../components/VerificationModal';
@@ -69,6 +69,98 @@ const OrganizerDashboard = () => {
   // Publish bracket picker state
   const [activePublishId, setActivePublishId] = useState('');
   const [bracketType, setBracketType] = useState('single_elimination'); // or 'double_elimination'
+
+  // Stream Modal State
+  const [activeStreamTournament, setActiveStreamTournament] = useState(null);
+  const [streamUrlInput, setStreamUrlInput] = useState('');
+  const [streamTitleInput, setStreamTitleInput] = useState('');
+  const [streamPlatformInput, setStreamPlatformInput] = useState('youtube');
+  const [savingStream, setSavingStream] = useState(false);
+
+  // Replay Modal State
+  const [activeReplayTournament, setActiveReplayTournament] = useState(null);
+  const [replayUrlInput, setReplayUrlInput] = useState('');
+  const [replayTitleInput, setReplayTitleInput] = useState('');
+  const [savingReplay, setSavingReplay] = useState(false);
+
+  const openStreamModal = (t) => {
+    setActiveStreamTournament(t);
+    setStreamUrlInput(t.streamUrl || '');
+    setStreamTitleInput(t.streamTitle || `${t.name} - Live Stream`);
+    setStreamPlatformInput(t.streamPlatform || 'youtube');
+  };
+
+  const handleSaveStream = async (e) => {
+    e.preventDefault();
+    if (!activeStreamTournament) return;
+    setSavingStream(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/tournaments/${activeStreamTournament._id}/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
+        body: JSON.stringify({
+          streamUrl: streamUrlInput,
+          streamTitle: streamTitleInput,
+          streamPlatform: streamPlatformInput
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to update stream configuration');
+      
+      setTournaments(prev => prev.map(t => t._id === activeStreamTournament._id ? {
+        ...t,
+        streamUrl: streamUrlInput,
+        streamTitle: streamTitleInput,
+        streamPlatform: streamPlatformInput
+      } : t));
+      setActiveStreamTournament(null);
+    } catch (err) {
+      alert(err.message || 'Failed to update stream configuration');
+    } finally {
+      setSavingStream(false);
+    }
+  };
+
+  const openReplayModal = (t) => {
+    setActiveReplayTournament(t);
+    setReplayUrlInput(t.replayUrl || '');
+    setReplayTitleInput(t.replayTitle || `${t.name} - Full Match / Grand Final VOD`);
+  };
+
+  const handleSaveReplay = async (e) => {
+    e.preventDefault();
+    if (!activeReplayTournament) return;
+    setSavingReplay(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/tournaments/${activeReplayTournament._id}/replay`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader()
+        },
+        body: JSON.stringify({
+          replayUrl: replayUrlInput,
+          replayTitle: replayTitleInput
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to update replay VOD');
+      
+      setTournaments(prev => prev.map(t => t._id === activeReplayTournament._id ? {
+        ...t,
+        replayUrl: replayUrlInput,
+        replayTitle: replayTitleInput
+      } : t));
+      setActiveReplayTournament(null);
+    } catch (err) {
+      alert(err.message || 'Failed to update replay VOD');
+    } finally {
+      setSavingReplay(false);
+    }
+  };
 
   const fetchMyTournaments = async () => {
     try {
@@ -1120,6 +1212,50 @@ const OrganizerDashboard = () => {
                               <Eye size={16} />
                             </Link>
 
+                            {(t.status === 'published' || t.status === 'ongoing') && (
+                              <button 
+                                className="btn btn-sm"
+                                onClick={() => openStreamModal(t)}
+                                style={{ 
+                                  padding: '4px 10px', 
+                                  fontSize: '0.75rem', 
+                                  display: 'inline-flex', 
+                                  alignItems: 'center', 
+                                  gap: '4px',
+                                  background: t.streamUrl ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                                  color: t.streamUrl ? '#ef4444' : '#e2e8f0',
+                                  border: t.streamUrl ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
+                                  borderRadius: '6px'
+                                }}
+                                title={t.streamUrl ? "Manage Live Stream" : "Add Live Stream Link"}
+                              >
+                                <Radio size={13} className={t.streamUrl ? "pulse-dot" : ""} />
+                                {t.streamUrl ? 'Live Configured' : '+ Live Stream'}
+                              </button>
+                            )}
+
+                            {t.status === 'completed' && (
+                              <button 
+                                className="btn btn-sm"
+                                onClick={() => openReplayModal(t)}
+                                style={{ 
+                                  padding: '4px 10px', 
+                                  fontSize: '0.75rem', 
+                                  display: 'inline-flex', 
+                                  alignItems: 'center', 
+                                  gap: '4px',
+                                  background: t.replayUrl ? 'rgba(168, 85, 247, 0.2)' : 'rgba(255, 255, 255, 0.08)',
+                                  color: t.replayUrl ? '#c084fc' : '#e2e8f0',
+                                  border: t.replayUrl ? '1px solid rgba(168, 85, 247, 0.4)' : '1px solid rgba(255, 255, 255, 0.15)',
+                                  borderRadius: '6px'
+                                }}
+                                title={t.replayUrl ? "Manage Replay VOD" : "Add Tournament Replay Link"}
+                              >
+                                <Film size={13} />
+                                {t.replayUrl ? 'Replay Added' : '+ Add Replay'}
+                              </button>
+                            )}
+
                             {t.status === 'draft' && (
                               <>
                                 <button 
@@ -1238,6 +1374,134 @@ const OrganizerDashboard = () => {
           </div>
         </div>
       )}
+      {/* Live Stream Configuration Modal */}
+      {activeStreamTournament && (
+        <div className="modal-overlay" onClick={() => setActiveStreamTournament(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}>
+                  <Radio size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Configure Live Broadcast</h3>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{activeStreamTournament.name}</p>
+                </div>
+              </div>
+              <button className="modal-close" onClick={() => setActiveStreamTournament(null)}>&times;</button>
+            </div>
+            <form onSubmit={handleSaveStream}>
+              <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600 }}>Stream / Broadcast Title</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. Official Grand Finals Livestream"
+                    value={streamTitleInput}
+                    onChange={e => setStreamTitleInput(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600 }}>Streaming Platform</label>
+                  <select
+                    className="form-control"
+                    value={streamPlatformInput}
+                    onChange={e => setStreamPlatformInput(e.target.value)}
+                  >
+                    <option value="youtube">YouTube Live</option>
+                    <option value="twitch">Twitch.tv</option>
+                    <option value="kick">Kick.com</option>
+                    <option value="other">Other Platform</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600 }}>Live Stream URL</label>
+                  <input
+                    type="url"
+                    className="form-control"
+                    placeholder="https://www.youtube.com/watch?v=... or https://twitch.tv/..."
+                    value={streamUrlInput}
+                    onChange={e => setStreamUrlInput(e.target.value)}
+                    required
+                  />
+                  <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                    This stream will automatically appear in the <strong>Live Streams section</strong> with real-time viewer engagement!
+                  </small>
+                </div>
+              </div>
+
+              <div className="modal-actions" style={{ padding: '16px 20px', borderTop: '1px solid var(--border-color)' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setActiveStreamTournament(null)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={savingStream} style={{ background: '#ef4444', borderColor: '#ef4444' }}>
+                  {savingStream ? 'Saving Broadcast...' : 'Save & Publish Stream'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Tournament Replay VOD Modal */}
+      {activeReplayTournament && (
+        <div className="modal-overlay" onClick={() => setActiveReplayTournament(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'rgba(168, 85, 247, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#c084fc' }}>
+                  <Film size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Add Tournament Replay VOD</h3>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{activeReplayTournament.name}</p>
+                </div>
+              </div>
+              <button className="modal-close" onClick={() => setActiveReplayTournament(null)}>&times;</button>
+            </div>
+            <form onSubmit={handleSaveReplay}>
+              <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600 }}>VOD Title</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="e.g. Grand Final Highlights & Full Match Replay"
+                    value={replayTitleInput}
+                    onChange={e => setReplayTitleInput(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600 }}>Replay Video URL</label>
+                  <input
+                    type="url"
+                    className="form-control"
+                    placeholder="https://www.youtube.com/watch?v=... or Twitch VOD URL"
+                    value={replayUrlInput}
+                    onChange={e => setReplayUrlInput(e.target.value)}
+                    required
+                  />
+                  <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '4px', display: 'block' }}>
+                    This VOD will appear permanently in the <strong>Replay VOD Hub</strong> for community playback and archives.
+                  </small>
+                </div>
+              </div>
+
+              <div className="modal-actions" style={{ padding: '16px 20px', borderTop: '1px solid var(--border-color)' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setActiveReplayTournament(null)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={savingReplay} style={{ background: '#a855f7', borderColor: '#a855f7' }}>
+                  {savingReplay ? 'Saving Replay...' : 'Publish to Replay Hub'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Verification Modal */}
       <VerificationModal 
         isOpen={showVerificationModal}

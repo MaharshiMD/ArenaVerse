@@ -90,16 +90,62 @@ const createAntiCheatReport = async (req, res) => {
   }
 };
 
+const formatEmbedUrl = (rawUrl) => {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  const url = rawUrl.trim();
+  if (url.includes('youtube.com/embed/')) return url;
+
+  // YouTube watch?v=ID or youtu.be/ID or live/ID
+  const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (ytMatch && ytMatch[1]) {
+    return `https://www.youtube.com/embed/${ytMatch[1]}`;
+  }
+
+  // Twitch channel
+  const twitchMatch = url.match(/twitch\.tv\/([a-zA-Z0-9_]+)/);
+  if (twitchMatch && twitchMatch[1]) {
+    return `https://player.twitch.tv/?channel=${twitchMatch[1]}&parent=localhost&parent=127.0.0.1`;
+  }
+
+  return url;
+};
+
 // 33. Replays & VOD Library
 const getReplays = async (req, res) => {
   try {
-    let replays = await ReplayVOD.find().sort({ createdAt: -1 }).lean();
+    let replays = await ReplayVOD.find().populate('tournament', 'name game status banner').sort({ createdAt: -1 }).lean();
+
+    // Also fetch any completed tournaments that have replayUrl set
+    const tournamentVODs = await Tournament.find({
+      replayUrl: { $exists: true, $ne: '' },
+      status: 'completed',
+    }).populate('organizer', 'username').lean();
+
+    for (const t of tournamentVODs) {
+      const alreadyExists = replays.some(r => 
+        (r.tournament && r.tournament._id && r.tournament._id.toString() === t._id.toString()) ||
+        r.vodUrl === t.replayUrl
+      );
+      if (!alreadyExists) {
+        replays.unshift({
+          _id: `t_vod_${t._id}`,
+          title: t.replayTitle || `${t.name} - Official Grand Final Replay VOD`,
+          game: t.game,
+          vodUrl: formatEmbedUrl(t.replayUrl),
+          platform: 'youtube',
+          views: 920,
+          tournament: t,
+          createdAt: t.resultsFinalizedAt || t.updatedAt,
+        });
+      }
+    }
+
     if (replays.length === 0) {
       replays = [
         {
           _id: 'vod_1',
           title: 'BGMI Arena-Verse Grand Finals 2026 - Match 5 clutch',
-          game: 'BGMI / PUBG Mobile',
+          game: 'Battlegrounds Mobile India (BGMI)',
           platform: 'youtube',
           vodUrl: 'https://www.youtube.com/embed/NtB1wUKNi6E',
           views: 1420,
@@ -115,7 +161,13 @@ const getReplays = async (req, res) => {
           createdAt: new Date(),
         },
       ];
+    } else {
+      replays = replays.map(r => ({
+        ...r,
+        vodUrl: formatEmbedUrl(r.vodUrl),
+      }));
     }
+
     res.json(replays);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -536,10 +588,33 @@ const votePoll = async (req, res) => {
 // 53. Streams & Creators Hub
 const getStreams = async (req, res) => {
   try {
-    res.json([
-      { id: 'str_1', creator: 'MortalLive', title: 'BGMI Pro League Grand Finals Day 3', game: 'BGMI', viewers: 18450, platform: 'youtube', url: 'https://www.youtube.com/embed/live_stream' },
+    // 1. Fetch live tournaments configured with streamUrl that are published or ongoing
+    const liveTournaments = await Tournament.find({
+      streamUrl: { $exists: true, $ne: '' },
+      status: { $in: ['published', 'ongoing'] }
+    }).populate('organizer', 'name username avatar').lean();
+
+    const tournamentStreams = liveTournaments.map(t => ({
+      id: t._id.toString(),
+      creator: t.organizer?.name || t.organizer?.username || 'Tournament Official',
+      title: t.streamTitle || `LIVE: ${t.name}`,
+      game: t.game,
+      viewers: 1450,
+      platform: t.streamPlatform || 'youtube',
+      url: formatEmbedUrl(t.streamUrl),
+      isTournamentOfficial: true,
+      tournamentId: t._id,
+      tournamentName: t.name,
+      status: t.status,
+    }));
+
+    // 2. Featured community & pro streams
+    const featuredStreams = [
+      { id: 'str_1', creator: 'MortalLive', title: 'BGMI Pro League Grand Finals Day 3', game: 'Battlegrounds Mobile India (BGMI)', viewers: 18450, platform: 'youtube', url: 'https://www.youtube.com/embed/live_stream' },
       { id: 'str_2', creator: 'TenzStream', title: 'Valorant Radiant Ranked Grind', game: 'VALORANT', viewers: 12300, platform: 'twitch', url: 'https://www.youtube.com/embed/live_stream' },
-    ]);
+    ];
+
+    res.json([...tournamentStreams, ...featuredStreams]);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

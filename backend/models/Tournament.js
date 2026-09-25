@@ -94,6 +94,27 @@ const TournamentSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    streamUrl: {
+      type: String,
+      default: '',
+    },
+    streamTitle: {
+      type: String,
+      default: '',
+    },
+    streamPlatform: {
+      type: String,
+      enum: ['youtube', 'twitch', 'kick', 'custom'],
+      default: 'youtube',
+    },
+    replayUrl: {
+      type: String,
+      default: '',
+    },
+    replayTitle: {
+      type: String,
+      default: '',
+    },
     autoWalkover: {
       type: Boolean,
       default: true,

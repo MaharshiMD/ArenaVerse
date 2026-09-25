@@ -1413,6 +1413,126 @@ const getClashSquadMatch = async (req, res) => {
   }
 };
 
+// @desc    Add or update live stream link for a published/ongoing tournament
+// @route   POST /api/tournaments/:id/stream
+// @access  Private (Organizer/Admin only)
+const setTournamentStream = async (req, res) => {
+  try {
+    const { streamUrl, streamTitle, streamPlatform } = req.body;
+    const tournament = await Tournament.findById(req.params.id);
+
+    if (!tournament) {
+      return res.status(404).json({ message: 'Tournament not found' });
+    }
+
+    if (
+      tournament.organizer.toString() !== req.user._id.toString() &&
+      req.user.role !== 'admin'
+    ) {
+      return res.status(403).json({ message: 'Not authorized to manage this tournament stream' });
+    }
+
+    if (tournament.status === 'draft') {
+      return res.status(400).json({ message: 'Tournament must be published before configuring live stream' });
+    }
+
+    tournament.streamUrl = streamUrl ? streamUrl.trim() : '';
+    tournament.streamTitle = streamTitle ? streamTitle.trim() : '';
+    if (streamPlatform) tournament.streamPlatform = streamPlatform;
+
+    await tournament.save();
+
+    if (req.io) {
+      req.io.emit('tournament_stream_updated', {
+        tournamentId: tournament._id,
+        streamUrl: tournament.streamUrl,
+        streamTitle: tournament.streamTitle,
+      });
+      req.io.to(`tournament_${tournament._id.toString()}`).emit('stream_updated', {
+        streamUrl: tournament.streamUrl,
+        streamTitle: tournament.streamTitle,
+      });
+    }
+
+    res.json({
+      message: tournament.streamUrl ? 'Live stream link successfully updated!' : 'Live stream link cleared',
+      tournament,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Add or update tournament replay VOD link once tournament is completed
+// @route   POST /api/tournaments/:id/replay
+// @access  Private (Organizer/Admin only)
+const setTournamentReplay = async (req, res) => {
+  try {
+    const { replayUrl, replayTitle, platform } = req.body;
+    const tournament = await Tournament.findById(req.params.id);
+
+    if (!tournament) {
+      return res.status(404).json({ message: 'Tournament not found' });
+    }
+
+    if (
+      tournament.organizer.toString() !== req.user._id.toString() &&
+      req.user.role !== 'admin'
+    ) {
+      return res.status(403).json({ message: 'Not authorized to manage this tournament replay' });
+    }
+
+    if (tournament.status !== 'completed') {
+      return res.status(400).json({ message: 'Replay VOD can only be added once the tournament is completed' });
+    }
+
+    tournament.replayUrl = replayUrl ? replayUrl.trim() : '';
+    tournament.replayTitle = replayTitle ? replayTitle.trim() : '';
+    await tournament.save();
+
+    // Create or update ReplayVOD document for Replay VOD Hub
+    const ReplayVOD = require('../models/ReplayVOD');
+    if (tournament.replayUrl) {
+      let vod = await ReplayVOD.findOne({ tournament: tournament._id });
+      if (vod) {
+        vod.vodUrl = tournament.replayUrl;
+        vod.title = tournament.replayTitle || `${tournament.name} - Official Tournament Replay VOD`;
+        vod.game = tournament.game;
+        vod.platform = platform || 'youtube';
+        await vod.save();
+      } else {
+        await ReplayVOD.create({
+          tournament: tournament._id,
+          title: tournament.replayTitle || `${tournament.name} - Official Tournament Replay VOD`,
+          game: tournament.game,
+          vodUrl: tournament.replayUrl,
+          platform: platform || 'youtube',
+          views: 120,
+        });
+      }
+    }
+
+    if (req.io) {
+      req.io.emit('tournament_replay_updated', {
+        tournamentId: tournament._id,
+        replayUrl: tournament.replayUrl,
+        replayTitle: tournament.replayTitle,
+      });
+      req.io.to(`tournament_${tournament._id.toString()}`).emit('replay_updated', {
+        replayUrl: tournament.replayUrl,
+        replayTitle: tournament.replayTitle,
+      });
+    }
+
+    res.json({
+      message: tournament.replayUrl ? 'Replay VOD successfully published to Replay Hub!' : 'Replay VOD link cleared',
+      tournament,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   createTournament,
   editTournament,
@@ -1433,4 +1553,6 @@ module.exports = {
   generateClashSquadBracket,
   getClashSquadBracket,
   getClashSquadMatch,
+  setTournamentStream,
+  setTournamentReplay,
 };

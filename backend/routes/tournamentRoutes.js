@@ -20,6 +20,8 @@ const {
   generateClashSquadBracket,
   getClashSquadBracket,
   getClashSquadMatch,
+  setTournamentStream,
+  setTournamentReplay,
 } = require('../controllers/tournamentController');
 const { updateMatchScore } = require('../controllers/matchController');
 const { protect, authorize, optionalAuth } = require('../middleware/auth');
@@ -39,6 +41,8 @@ router.post('/:id/leave', protect, leaveTournament);
 router.post('/:id/publish', protect, authorize('organizer', 'admin'), publishTournament);
 router.post('/:id/announcements', protect, authorize('organizer', 'admin'), postAnnouncement);
 router.post('/:id/invite', protect, authorize('organizer', 'admin'), inviteTournamentEntrant);
+router.post('/:id/stream', protect, authorize('organizer', 'admin'), setTournamentStream);
+router.post('/:id/replay', protect, authorize('organizer', 'admin'), setTournamentReplay);
 
 // Battle Royale Tournament Specific Routes
 router.post('/:tournamentId/matches', protect, authorize('organizer', 'admin'), createOrScheduleBRMatches);

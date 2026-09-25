@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Tv, Radio, Users, Eye } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Tv, Radio, Users, Eye, ArrowUpRight } from 'lucide-react';
+import { useSocket } from '../context/SocketContext';
 import { API_BASE_URL } from '../config/api';
 import './StreamHub.css';
 
 const StreamHub = () => {
+  const socket = useSocket();
   const [streams, setStreams] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,6 +24,22 @@ const StreamHub = () => {
       setLoading(false);
     }
   };
+
+  // Real-time update when an organizer updates a live stream link
+  useEffect(() => {
+    if (!socket) return;
+    const handleStreamUpdate = () => {
+      fetchStreams();
+    };
+
+    socket.on('tournament_stream_updated', handleStreamUpdate);
+    socket.on('tournament_completed', handleStreamUpdate);
+
+    return () => {
+      socket.off('tournament_stream_updated', handleStreamUpdate);
+      socket.off('tournament_completed', handleStreamUpdate);
+    };
+  }, [socket]);
 
   if (loading) {
     return <div className="text-center py-5 mt-5"><p className="text-secondary text-sm">Loading Live Streaming Hub...</p></div>;
@@ -57,6 +76,19 @@ const StreamHub = () => {
                   allowFullScreen
                 ></iframe>
               </div>
+
+              {stream.isTournamentOfficial && stream.tournamentId && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <span className="badge badge-ongoing text-xs">Official Arena Tournament</span>
+                  <Link 
+                    to={`/tournaments/${stream.tournamentId}`} 
+                    className="btn btn-primary btn-sm" 
+                    style={{ fontSize: '11px', padding: '3px 10px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    View Tournament Brackets <ArrowUpRight size={13} />
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
         ))}

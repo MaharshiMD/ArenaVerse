@@ -9,10 +9,25 @@ import TournamentChat from '../components/TournamentChat';
 import TournamentReviews from '../components/TournamentReviews';
 import TournamentHighlights from '../components/TournamentHighlights';
 import DisputeModal from '../components/DisputeModal';
-import { Calendar, Award, IndianRupee, Users, BookOpen, UserCheck, AlertTriangle, ArrowLeft, Trophy, Crown, Medal, Megaphone, Send, MessageSquare, FileText, Download, Star, Eye, ShieldAlert, ShieldCheck, Sparkles, Wallet, CreditCard, Globe, Flame, Swords } from 'lucide-react';
+import { Calendar, Award, IndianRupee, Users, BookOpen, UserCheck, AlertTriangle, ArrowLeft, Trophy, Crown, Medal, Megaphone, Send, MessageSquare, FileText, Download, Star, Eye, ShieldAlert, ShieldCheck, Sparkles, Wallet, CreditCard, Globe, Flame, Swords, Radio, Tv, Film, Play, Video, ExternalLink, X } from 'lucide-react';
 import EsportsCertificateModal from '../components/EsportsCertificateModal';
 import { API_BASE_URL } from '../config/api';
 import './TournamentDetails.css';
+
+const formatEmbedUrl = (rawUrl) => {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  const url = rawUrl.trim();
+  if (url.includes('youtube.com/embed/')) return url;
+  const ytMatch = url.match(/(?:youtube\.com\/(?:watch\?v=|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (ytMatch && ytMatch[1]) {
+    return `https://www.youtube.com/embed/${ytMatch[1]}`;
+  }
+  const twitchMatch = url.match(/twitch\.tv\/([a-zA-Z0-9_]+)/);
+  if (twitchMatch && twitchMatch[1]) {
+    return `https://player.twitch.tv/?channel=${twitchMatch[1]}&parent=localhost&parent=127.0.0.1`;
+  }
+  return url;
+};
 
 const TournamentDetails = () => {
   const { id } = useParams();
@@ -42,6 +57,20 @@ const TournamentDetails = () => {
   const [announcementContent, setAnnouncementContent] = useState('');
   const [postingAnnouncement, setPostingAnnouncement] = useState(false);
   const [announcementMsg, setAnnouncementMsg] = useState('');
+
+  // Live Stream & Replay VOD States
+  const [showStreamModal, setShowStreamModal] = useState(false);
+  const [streamUrlInput, setStreamUrlInput] = useState('');
+  const [streamTitleInput, setStreamTitleInput] = useState('');
+  const [streamPlatformInput, setStreamPlatformInput] = useState('youtube');
+  const [streamSaveLoading, setStreamSaveLoading] = useState(false);
+  const [streamSaveMsg, setStreamSaveMsg] = useState('');
+
+  const [showReplayModal, setShowReplayModal] = useState(false);
+  const [replayUrlInput, setReplayUrlInput] = useState('');
+  const [replayTitleInput, setReplayTitleInput] = useState('');
+  const [replaySaveLoading, setReplaySaveLoading] = useState(false);
+  const [replaySaveMsg, setReplaySaveMsg] = useState('');
 
   const fetchDetails = async () => {
     try {
@@ -115,10 +144,20 @@ const TournamentDetails = () => {
       }
     });
 
+    socket.on('stream_updated', (data) => {
+      setTournament(prev => prev ? { ...prev, streamUrl: data.streamUrl, streamTitle: data.streamTitle } : null);
+    });
+
+    socket.on('replay_updated', (data) => {
+      setTournament(prev => prev ? { ...prev, replayUrl: data.replayUrl, replayTitle: data.replayTitle } : null);
+    });
+
     return () => {
       socket.emit('leave_tournament', id);
       socket.off('match_updated');
       socket.off('announcement_posted');
+      socket.off('stream_updated');
+      socket.off('replay_updated');
     };
   }, [socket, id]);
 
@@ -592,14 +631,47 @@ const TournamentDetails = () => {
           <span>Go Back to Browse Tournaments</span>
         </button>
 
-        {user && (
-          <button 
-            className="btn btn-danger btn-sm"
-            onClick={() => setShowDisputeModal(true)}
-          >
-            <ShieldAlert size={16} /> File Dispute / Report Violation
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {isOrganizer && (tournament.status === 'published' || tournament.status === 'ongoing') && (
+            <button 
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                setStreamUrlInput(tournament.streamUrl || '');
+                setStreamTitleInput(tournament.streamTitle || '');
+                setStreamPlatformInput(tournament.streamPlatform || 'youtube');
+                setStreamSaveMsg('');
+                setShowStreamModal(true);
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Radio size={15} /> {tournament.streamUrl ? 'Manage Live Stream' : 'Add Live Stream Link'}
+            </button>
+          )}
+
+          {isOrganizer && tournament.status === 'completed' && (
+            <button 
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                setReplayUrlInput(tournament.replayUrl || '');
+                setReplayTitleInput(tournament.replayTitle || '');
+                setReplaySaveMsg('');
+                setShowReplayModal(true);
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#8b5cf6' }}
+            >
+              <Film size={15} /> {tournament.replayUrl ? 'Manage Replay VOD' : 'Add Tournament Replay VOD'}
+            </button>
+          )}
+
+          {user && (
+            <button 
+              className="btn btn-danger btn-sm"
+              onClick={() => setShowDisputeModal(true)}
+            >
+              <ShieldAlert size={16} /> File Dispute / Report Violation
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Header Banner */}
@@ -647,6 +719,98 @@ const TournamentDetails = () => {
           </div>
           <button onClick={() => navigate('/login')} className="btn btn-primary btn-sm">
             Log In to Compete
+          </button>
+        </div>
+      )}
+
+      {/* Live Stream Section (For Published/Ongoing tournaments with stream configured) */}
+      {tournament.streamUrl && tournament.status !== 'completed' && (
+        <div className="glass-panel p-4 mt-4" style={{ border: '1px solid rgba(239, 68, 68, 0.4)', background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%)', borderRadius: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="badge badge-ongoing" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <Radio size={14} className="animate-pulse" /> LIVE STREAM BROADCAST
+              </span>
+              <span className="text-white font-bold text-sm">{tournament.streamTitle || `${tournament.name} - Official Live Broadcast`}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Link to="/streams" className="btn btn-secondary btn-sm" style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Tv size={12} /> View in Live Streams Hub
+              </Link>
+              {isOrganizer && (
+                <button className="btn btn-primary btn-sm" style={{ fontSize: '11px' }} onClick={() => setShowStreamModal(true)}>
+                  Edit Stream Link
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="video-responsive" style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: '8px', background: '#000' }}>
+            <iframe
+              src={formatEmbedUrl(tournament.streamUrl)}
+              title={tournament.streamTitle || tournament.name}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            ></iframe>
+          </div>
+        </div>
+      )}
+
+      {/* Tournament Replay VOD Section (For Completed tournaments with replay configured) */}
+      {tournament.replayUrl && tournament.status === 'completed' && (
+        <div className="glass-panel p-4 mt-4" style={{ border: '1px solid rgba(139, 92, 246, 0.4)', background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%)', borderRadius: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="badge badge-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                <Film size={14} /> OFFICIAL GRAND FINAL REPLAY VOD
+              </span>
+              <span className="text-white font-bold text-sm">{tournament.replayTitle || `${tournament.name} - Full Match Replay`}</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Link to="/replays" className="btn btn-secondary btn-sm" style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <Film size={12} /> View in Replay VOD Hub
+              </Link>
+              {isOrganizer && (
+                <button className="btn btn-primary btn-sm" style={{ fontSize: '11px' }} onClick={() => setShowReplayModal(true)}>
+                  Edit Replay Link
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="video-responsive" style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: '8px', background: '#000' }}>
+            <iframe
+              src={formatEmbedUrl(tournament.replayUrl)}
+              title={tournament.replayTitle || tournament.name}
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            ></iframe>
+          </div>
+        </div>
+      )}
+
+      {/* Organizer Stream Setup Banner if not configured yet */}
+      {isOrganizer && (tournament.status === 'published' || tournament.status === 'ongoing') && !tournament.streamUrl && (
+        <div className="glass-panel p-3 mt-4" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Radio size={20} className="text-danger" />
+            <span className="text-sm">Broadcast your tournament live! Add a YouTube, Twitch, or Kick stream link so fans and players can watch in real time.</span>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowStreamModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <Radio size={14} /> Add Stream Link
+          </button>
+        </div>
+      )}
+
+      {/* Organizer Replay VOD Setup Banner if completed and not configured yet */}
+      {isOrganizer && tournament.status === 'completed' && !tournament.replayUrl && (
+        <div className="glass-panel p-3 mt-4" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', background: 'rgba(139, 92, 246, 0.08)', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Film size={20} className="text-primary" />
+            <span className="text-sm">Tournament matches completed! Archive this event by publishing the Grand Final Replay VOD to the Replay Hub.</span>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowReplayModal(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <Film size={14} /> Add Replay VOD
           </button>
         </div>
       )}
@@ -1215,6 +1379,244 @@ const TournamentDetails = () => {
         initialRunnerUpName={effectiveRunnerUp}
         initialType={certModalType}
       />
+
+      {/* Live Stream Configuration Modal */}
+      {showStreamModal && (
+        <div className="modal-overlay" onClick={() => setShowStreamModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Radio className="text-danger" size={20} /> Configure Tournament Live Stream
+              </h3>
+              <button className="btn-close" onClick={() => setShowStreamModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setStreamSaveLoading(true);
+              setStreamSaveMsg('');
+              try {
+                const res = await fetch(`${API_BASE_URL}/api/tournaments/${id}/stream`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeader(),
+                  },
+                  body: JSON.stringify({
+                    streamUrl: streamUrlInput,
+                    streamTitle: streamTitleInput,
+                    streamPlatform: streamPlatformInput,
+                  }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Failed to update stream link');
+                setStreamSaveMsg(data.message);
+                setTournament(data.tournament);
+                setTimeout(() => setShowStreamModal(false), 1000);
+              } catch (err) {
+                setStreamSaveMsg(err.message);
+              } finally {
+                setStreamSaveLoading(false);
+              }
+            }} className="modal-body">
+              <p className="text-secondary text-xs mb-3">
+                Paste the URL of your live stream (YouTube, Twitch, or Kick). This stream will be embedded here and broadcast across the site in the <strong>Live Streams Hub</strong>.
+              </p>
+
+              {streamSaveMsg && (
+                <p className={streamSaveMsg.includes('Failed') ? 'error-text text-xs mb-2' : 'success-text text-xs mb-2'}>
+                  {streamSaveMsg}
+                </p>
+              )}
+
+              <div className="form-group mb-3">
+                <label className="form-label text-xs">Live Stream URL (YouTube, Twitch, or Kick)</label>
+                <input
+                  type="url"
+                  className="form-control"
+                  placeholder="https://www.youtube.com/watch?v=... or https://twitch.tv/..."
+                  value={streamUrlInput}
+                  onChange={(e) => setStreamUrlInput(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group mb-3">
+                <label className="form-label text-xs">Broadcast Title (Optional)</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="e.g. ArenaVerse Winter Cup - Grand Finals LIVE"
+                  value={streamTitleInput}
+                  onChange={(e) => setStreamTitleInput(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group mb-4">
+                <label className="form-label text-xs">Platform</label>
+                <select
+                  className="form-control"
+                  value={streamPlatformInput}
+                  onChange={(e) => setStreamPlatformInput(e.target.value)}
+                >
+                  <option value="youtube">YouTube Live</option>
+                  <option value="twitch">Twitch</option>
+                  <option value="kick">Kick</option>
+                  <option value="custom">Other / Custom</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                {tournament.streamUrl && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={async () => {
+                      setStreamUrlInput('');
+                      try {
+                        const res = await fetch(`${API_BASE_URL}/api/tournaments/${id}/stream`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            ...getAuthHeader(),
+                          },
+                          body: JSON.stringify({ streamUrl: '', streamTitle: '' }),
+                        });
+                        const data = await res.json();
+                        setTournament(data.tournament);
+                        setShowStreamModal(false);
+                      } catch (err) {
+                        alert(err.message);
+                      }
+                    }}
+                  >
+                    Clear Stream
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={streamSaveLoading}
+                >
+                  {streamSaveLoading ? 'Saving...' : 'Save & Publish Live Stream'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Tournament Replay VOD Configuration Modal */}
+      {showReplayModal && (
+        <div className="modal-overlay" onClick={() => setShowReplayModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="modal-header">
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Film className="text-primary" size={20} /> Publish Tournament Replay VOD
+              </h3>
+              <button className="btn-close" onClick={() => setShowReplayModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setReplaySaveLoading(true);
+              setReplaySaveMsg('');
+              try {
+                const res = await fetch(`${API_BASE_URL}/api/tournaments/${id}/replay`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeader(),
+                  },
+                  body: JSON.stringify({
+                    replayUrl: replayUrlInput,
+                    replayTitle: replayTitleInput,
+                  }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || 'Failed to update replay link');
+                setReplaySaveMsg(data.message);
+                setTournament(data.tournament);
+                setTimeout(() => setShowReplayModal(false), 1000);
+              } catch (err) {
+                setReplaySaveMsg(err.message);
+              } finally {
+                setReplaySaveLoading(false);
+              }
+            }} className="modal-body">
+              <p className="text-secondary text-xs mb-3">
+                Add the link of the tournament match replay or VOD recording. It will be showcased on this tournament page and permanently archived in the <strong>Replay VOD Hub</strong>.
+              </p>
+
+              {replaySaveMsg && (
+                <p className={replaySaveMsg.includes('Failed') ? 'error-text text-xs mb-2' : 'success-text text-xs mb-2'}>
+                  {replaySaveMsg}
+                </p>
+              )}
+
+              <div className="form-group mb-3">
+                <label className="form-label text-xs">Replay VOD URL (YouTube or Twitch)</label>
+                <input
+                  type="url"
+                  className="form-control"
+                  placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                  value={replayUrlInput}
+                  onChange={(e) => setReplayUrlInput(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group mb-4">
+                <label className="form-label text-xs">VOD Title (Optional)</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="e.g. Grand Finals VOD - Full Match Replay"
+                  value={replayTitleInput}
+                  onChange={(e) => setReplayTitleInput(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                {tournament.replayUrl && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={async () => {
+                      setReplayUrlInput('');
+                      try {
+                        const res = await fetch(`${API_BASE_URL}/api/tournaments/${id}/replay`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            ...getAuthHeader(),
+                          },
+                          body: JSON.stringify({ replayUrl: '', replayTitle: '' }),
+                        });
+                        const data = await res.json();
+                        setTournament(data.tournament);
+                        setShowReplayModal(false);
+                      } catch (err) {
+                        alert(err.message);
+                      }
+                    }}
+                  >
+                    Clear Replay
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={replaySaveLoading}
+                >
+                  {replaySaveLoading ? 'Saving...' : 'Publish to Replay Hub'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
