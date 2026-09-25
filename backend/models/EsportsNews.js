@@ -79,6 +79,7 @@ const esportsNewsSchema = new mongoose.Schema(
       subtitles: [
         {
           word: String,
+          sentenceIndex: Number,
           startTime: Number,
           endTime: Number,
         }

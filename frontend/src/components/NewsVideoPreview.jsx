@@ -1,5 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Play, Pause, RotateCcw, Volume2, VolumeX, Maximize2, Minimize2, Sparkles, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { 
+  X, 
+  Play, 
+  Pause, 
+  RotateCcw, 
+  Volume2, 
+  VolumeX, 
+  Maximize2, 
+  Minimize2, 
+  Sparkles, 
+  CheckCircle2,
+  Captions,
+  FileText
+} from 'lucide-react';
 import './NewsVideoPreview.css';
 
 const NewsVideoPreview = ({ article, onClose }) => {
@@ -35,6 +48,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
   const [duration, setDuration] = useState(videoData.duration || 12);
   const [isMuted, setIsMuted] = useState(false);
   const [isTheater, setIsTheater] = useState(false);
+  const [showFullTranscript, setShowFullTranscript] = useState(false);
   const [activeWordIndex, setActiveWordIndex] = useState(0);
 
   const audioRef = useRef(null);
@@ -42,8 +56,33 @@ const NewsVideoPreview = ({ article, onClose }) => {
   const utteranceRef = useRef(null);
   const animationFrameRef = useRef(null);
 
-  // Determine current scene based on currentTime
+  // Pre-index subtitles with stable global indices
+  const indexedSubtitles = useMemo(() => {
+    return subtitles.map((sub, idx) => ({
+      ...sub,
+      globalIdx: idx
+    }));
+  }, [subtitles]);
+
+  // Active Scene based on currentTime
   const currentScene = scenes.find(s => currentTime >= s.timeStart && currentTime <= s.timeEnd) || scenes[0];
+
+  // Synchronize audio playback timestamp to active subtitle word
+  const syncTimeToWord = (time) => {
+    setCurrentTime(time);
+    if (!indexedSubtitles || indexedSubtitles.length === 0) return;
+
+    // Find the current spoken word where time >= startTime
+    let activeIdx = 0;
+    for (let i = 0; i < indexedSubtitles.length; i++) {
+      if (time >= indexedSubtitles[i].startTime) {
+        activeIdx = i;
+      } else {
+        break;
+      }
+    }
+    setActiveWordIndex(activeIdx);
+  };
 
   // Initialize playback immediately from DB audio or speech fallback
   useEffect(() => {
@@ -62,12 +101,16 @@ const NewsVideoPreview = ({ article, onClose }) => {
       audio.onpause = () => setIsPlaying(false);
       audio.onended = () => {
         setIsPlaying(false);
-        setCurrentTime(duration);
+        setCurrentTime(audio.duration || duration);
+        setActiveWordIndex(indexedSubtitles.length > 0 ? indexedSubtitles.length - 1 : 0);
       };
 
-      // Instant Auto-play from database (zero waiting)
+      audio.ontimeupdate = () => {
+        syncTimeToWord(audio.currentTime);
+      };
+
+      // Instant Auto-play from database
       audio.play().catch(() => {
-        // Autoplay policy may require user interaction
         setIsPlaying(false);
       });
 
@@ -76,8 +119,8 @@ const NewsVideoPreview = ({ article, onClose }) => {
         audio.src = '';
       };
     } else {
-      // Fallback: Web Speech API if legacy article without DB audio
-      const text = `ArenaVerse Flash Intel. ${article.title}. ${article.summary}`;
+      // Fallback: Web Speech API for legacy articles without DB audio
+      const text = `ArenaVerse Flash Report: ${article.title}. ${article.summary}`;
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 1.0;
       utteranceRef.current = utterance;
@@ -97,24 +140,15 @@ const NewsVideoPreview = ({ article, onClose }) => {
     }
   }, [article, hasDbAudio]);
 
-  // High precision time tracker loop
+  // High-precision 60FPS animation loop for ultra-smooth UI sync
   useEffect(() => {
     const updateLoop = () => {
-      if (hasDbAudio && audioRef.current) {
-        const time = audioRef.current.currentTime;
-        setCurrentTime(time);
-
-        // Update active subtitle word
-        if (subtitles.length > 0) {
-          const idx = subtitles.findIndex(sub => time >= sub.startTime && time <= sub.endTime);
-          if (idx !== -1) setActiveWordIndex(idx);
-          else if (time >= (subtitles[subtitles.length - 1]?.endTime || duration)) {
-            setActiveWordIndex(subtitles.length);
-          }
-        }
+      if (hasDbAudio && audioRef.current && !audioRef.current.paused) {
+        syncTimeToWord(audioRef.current.currentTime);
       } else if (!hasDbAudio && isPlaying) {
         setCurrentTime(prev => {
           const next = prev + 0.05;
+          syncTimeToWord(next);
           if (next >= duration) {
             setIsPlaying(false);
             return duration;
@@ -135,7 +169,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
     }
 
     return () => cancelAnimationFrame(animationFrameRef.current);
-  }, [isPlaying, hasDbAudio, subtitles, duration]);
+  }, [isPlaying, hasDbAudio, indexedSubtitles, duration]);
 
   const togglePlayPause = () => {
     if (hasDbAudio && audioRef.current) {
@@ -144,7 +178,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
       } else {
         if (currentTime >= duration - 0.2) {
           audioRef.current.currentTime = 0;
-          setCurrentTime(0);
+          syncTimeToWord(0);
         }
         audioRef.current.play().catch(console.error);
       }
@@ -157,7 +191,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
           synthRef.current.resume();
           setIsPlaying(true);
         } else {
-          setCurrentTime(0);
+          syncTimeToWord(0);
           synthRef.current?.cancel();
           if (utteranceRef.current) synthRef.current?.speak(utteranceRef.current);
         }
@@ -168,13 +202,11 @@ const NewsVideoPreview = ({ article, onClose }) => {
   const restartVideo = () => {
     if (hasDbAudio && audioRef.current) {
       audioRef.current.currentTime = 0;
-      setCurrentTime(0);
-      setActiveWordIndex(0);
+      syncTimeToWord(0);
       audioRef.current.play().catch(console.error);
     } else {
       synthRef.current?.cancel();
-      setCurrentTime(0);
-      setActiveWordIndex(0);
+      syncTimeToWord(0);
       if (utteranceRef.current) synthRef.current?.speak(utteranceRef.current);
     }
   };
@@ -195,7 +227,15 @@ const NewsVideoPreview = ({ article, onClose }) => {
     if (hasDbAudio && audioRef.current) {
       audioRef.current.currentTime = targetTime;
     }
-    setCurrentTime(targetTime);
+    syncTimeToWord(targetTime);
+  };
+
+  const handleWordClick = (targetTime) => {
+    if (hasDbAudio && audioRef.current) {
+      audioRef.current.currentTime = targetTime;
+      if (!isPlaying) audioRef.current.play().catch(console.error);
+    }
+    syncTimeToWord(targetTime);
   };
 
   const progressPercent = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
@@ -206,6 +246,24 @@ const NewsVideoPreview = ({ article, onClose }) => {
     const remain = s % 60;
     return `${m}:${remain < 10 ? '0' : ''}${remain}`;
   };
+
+  // Determine current active sentence/phrase for kinetic display
+  const activeWordObj = indexedSubtitles[activeWordIndex] || indexedSubtitles[0];
+  const activeSentenceIdx = activeWordObj?.sentenceIndex !== undefined ? activeWordObj.sentenceIndex : null;
+
+  // Filter words belonging to current spoken sentence, or window of ~10 words if no sentenceIndex
+  const displayWords = useMemo(() => {
+    if (!indexedSubtitles.length) return [];
+    if (showFullTranscript) return indexedSubtitles;
+
+    if (activeSentenceIdx !== null) {
+      return indexedSubtitles.filter(w => w.sentenceIndex === activeSentenceIdx);
+    }
+
+    const start = Math.max(0, activeWordIndex - 3);
+    const end = Math.min(indexedSubtitles.length, activeWordIndex + 7);
+    return indexedSubtitles.slice(start, end);
+  }, [indexedSubtitles, showFullTranscript, activeSentenceIdx, activeWordIndex]);
 
   return (
     <div className={`news-video-preview-overlay ${isTheater ? 'theater-mode' : ''}`}>
@@ -221,11 +279,18 @@ const NewsVideoPreview = ({ article, onClose }) => {
           <div className="header-meta">
             <div className="db-ready-tag">
               <CheckCircle2 size={13} className="text-emerald-400" />
-              <span>DB STREAM • INSTANT PREVIEW</span>
+              <span>DB STREAM • SYNCHRONIZED AUDIO & SUBTITLES</span>
             </div>
             <h3 title={article.title}>{article.title}</h3>
           </div>
           <div className="header-actions">
+            <button 
+              className={`theater-toggle-btn ${showFullTranscript ? 'active' : ''}`}
+              onClick={() => setShowFullTranscript(!showFullTranscript)}
+              title={showFullTranscript ? "Show Kinetic Sentence View" : "Show Full Transcript"}
+            >
+              {showFullTranscript ? <Captions size={17} /> : <FileText size={17} />}
+            </button>
             <button 
               className="theater-toggle-btn"
               onClick={() => setIsTheater(!isTheater)} 
@@ -303,7 +368,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
           <div className="visualizer-container">
             {waveformBars.slice(0, 24).map((height, barIndex) => {
               const animatedHeight = isPlaying 
-                ? Math.min(100, Math.max(15, (height * (0.4 + 0.6 * Math.sin((currentTime * 8) + barIndex)))))
+                ? Math.min(100, Math.max(15, (height * (0.35 + 0.65 * Math.sin((currentTime * 9) + barIndex)))))
                 : 12;
               return (
                 <div 
@@ -311,26 +376,29 @@ const NewsVideoPreview = ({ article, onClose }) => {
                   className="visualizer-bar"
                   style={{
                     height: `${animatedHeight}%`,
-                    animationDelay: `${(barIndex * 0.05)}s`
+                    animationDelay: `${(barIndex * 0.04)}s`
                   }}
                 />
               );
             })}
           </div>
 
-          {/* Synchronized Subtitle Display */}
-          <div className="subtitle-display">
+          {/* Precision Synchronized Subtitle Display */}
+          <div className={`subtitle-display ${showFullTranscript ? 'full-transcript-mode' : 'kinetic-mode'}`}>
             <p className="subtitle-text">
-              {subtitles.length > 0 ? (
-                subtitles.map((sub, index) => {
-                  const isActive = index === activeWordIndex;
-                  const isRead = index < activeWordIndex;
+              {displayWords.length > 0 ? (
+                displayWords.map((wordItem) => {
+                  const isActive = wordItem.globalIdx === activeWordIndex;
+                  const isRead = wordItem.globalIdx < activeWordIndex;
+
                   return (
                     <span 
-                      key={index} 
-                      className={`subtitle-word ${isActive ? 'active-word' : ''} ${isRead ? 'read-word' : ''}`}
+                      key={`${wordItem.word}-${wordItem.globalIdx}`} 
+                      className={`subtitle-word ${isActive ? 'active-word' : ''} ${isRead ? 'read-word' : 'upcoming-word'}`}
+                      onClick={() => handleWordClick(wordItem.startTime)}
+                      title={`Jump to ${wordItem.startTime}s`}
                     >
-                      {sub.word}{' '}
+                      {wordItem.word}{' '}
                     </span>
                   );
                 })
@@ -347,7 +415,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
           <div 
             className="progress-container" 
             onClick={handleSeek}
-            title="Click to seek"
+            title="Click to seek anywhere"
           >
             <div className="progress-bg"></div>
             <div className="progress-bar" style={{ width: `${progressPercent}%` }}>
@@ -377,7 +445,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
             <div className="controls-center">
               <span className="vfx-engine-label">
                 <span className="pulse-dot"></span>
-                Instant DB Stream • {vfxTheme.themeName?.toUpperCase() || 'VFX HYPER'}
+                Precise Sync Audio & Subtitles • {vfxTheme.themeName?.toUpperCase() || 'VFX HYPER'}
               </span>
             </div>
 

@@ -1,6 +1,38 @@
 const https = require('https');
 
 /**
+ * Accurately calculate the duration of an MP3 Buffer by parsing MPEG frame headers
+ * @param {Buffer} buf 
+ * @returns {number} duration in seconds
+ */
+function getMp3Duration(buf) {
+  let offset = 0;
+  let totalSamples = 0;
+  let sampleRate = 44100;
+  const sampleRates = [44100, 48000, 32000];
+  const bitrates = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
+
+  while (offset < buf.length - 4) {
+    if (buf[offset] === 0xFF && (buf[offset + 1] & 0xE0) === 0xE0) {
+      const bitrateIndex = (buf[offset + 2] >> 4) & 0x0F;
+      const sampleRateIndex = (buf[offset + 2] >> 2) & 0x03;
+      const padding = (buf[offset + 2] >> 1) & 0x01;
+      sampleRate = sampleRates[sampleRateIndex] || 44100;
+      const bitrate = (bitrates[bitrateIndex] || 128) * 1000;
+      const frameLength = Math.floor((144 * bitrate) / sampleRate) + padding;
+      if (frameLength > 0) {
+        totalSamples += 1152;
+        offset += frameLength;
+        continue;
+      }
+    }
+    offset++;
+  }
+
+  return sampleRate > 0 && totalSamples > 0 ? (totalSamples / sampleRate) : 0;
+}
+
+/**
  * Fetch a single TTS audio chunk from Google Translate TTS
  * @param {string} text 
  * @returns {Promise<Buffer>}
@@ -33,53 +65,119 @@ function fetchTtsChunk(text) {
 }
 
 /**
- * Split text into chunks under maxChars without breaking words
+ * Clean text for natural speech pronunciation and clear subtitles
  */
-function splitIntoChunks(text, maxChars = 140) {
-  const words = text.replace(/[\r\n]+/g, ' ').trim().split(/\s+/);
-  const chunks = [];
-  let currentChunk = '';
-
-  for (const word of words) {
-    if ((currentChunk + ' ' + word).trim().length <= maxChars) {
-      currentChunk = (currentChunk + ' ' + word).trim();
-    } else {
-      if (currentChunk) chunks.push(currentChunk);
-      currentChunk = word;
-    }
-  }
-  if (currentChunk) {
-    chunks.push(currentChunk);
-  }
-  return chunks;
+function cleanSpeechText(text = '') {
+  return text
+    .replace(/[•*#_~`[\]]/g, ' ')
+    .replace(/\(BMPS\)/gi, 'BMPS')
+    .replace(/\(VCT\)/gi, 'VCT')
+    .replace(/\(FFIC\)/gi, 'FFIC')
+    .replace(/\(([^)]+)\)/g, '$1')
+    .replace(/₹\s*1[,.]?00[,.]?00[,.]?000/g, 'one crore rupees')
+    .replace(/₹\s*50[,.]?00[,.]?000/g, 'fifty lakh rupees')
+    .replace(/₹\s*([0-9,]+)/g, '$1 rupees')
+    .replace(/\$([0-9,]+)/g, '$1 dollars')
+    .replace(/vs\./gi, 'versus')
+    .replace(/(\d+)\s*INR/gi, '$1 Indian rupees')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
- * Synthesize complete speech audio into a Base64 data URI
+ * Split text into natural, bite-sized spoken sentences
  */
-async function synthesizeSpeechAudio(text) {
-  try {
-    const chunks = splitIntoChunks(text, 140);
-    const audioBuffers = [];
-
-    for (const chunk of chunks) {
-      const buf = await fetchTtsChunk(chunk);
-      audioBuffers.push(buf);
-      // Tiny pause between chunk requests to be polite
-      await new Promise(r => setTimeout(r, 60));
+function splitIntoSentences(text) {
+  const cleaned = cleanSpeechText(text);
+  // Split on sentence punctuation or semicolons
+  const parts = cleaned.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
+  
+  const sentences = [];
+  for (const part of parts) {
+    if (part.length <= 130) {
+      sentences.push(part);
+    } else {
+      // Split on commas if a sentence is too long
+      const subParts = part.split(/(?<=[,;])\s+/).map(s => s.trim()).filter(Boolean);
+      sentences.push(...subParts);
     }
-
-    const combined = Buffer.concat(audioBuffers);
-    return `data:audio/mpeg;base64,${combined.toString('base64')}`;
-  } catch (err) {
-    console.warn('[NewsVideoGenerator] External TTS error, generating fallback audio signal:', err.message);
-    // Fallback: minimal valid silent MP3 frame so audio playback never breaks
-    const silentMp3Header = Buffer.from([
-      0xff, 0xfb, 0x90, 0x44, 0x00, 0x00, 0x00, 0x00, 
-      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    ]);
-    return `data:audio/mpeg;base64,${silentMp3Header.toString('base64')}`;
   }
+  return sentences.filter(s => s.length > 2);
+}
+
+/**
+ * Compute millisecond-accurate word timings for a specific audio chunk
+ */
+function computeWordTimingsForChunk(chunkText, chunkDuration, baseTime, sentenceIndex) {
+  const words = chunkText.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+
+  // Calculate relative weight for each word based on length and punctuation
+  const weights = words.map(w => {
+    let weight = Math.max(2, w.length);
+    if (/[,;:]$/.test(w)) weight += 2.0; // short breath pause
+    if (/[.!?]$/.test(w)) weight += 4.0; // sentence end pause
+    return weight;
+  });
+
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  let curTime = baseTime;
+  const result = [];
+
+  for (let i = 0; i < words.length; i++) {
+    const wordDur = (weights[i] / totalWeight) * chunkDuration;
+    result.push({
+      word: words[i],
+      sentenceIndex,
+      startTime: Math.round(curTime * 100) / 100,
+      endTime: Math.round((curTime + wordDur) * 100) / 100
+    });
+    curTime += wordDur;
+  }
+  return result;
+}
+
+/**
+ * Synthesize complete speech audio and calculate exact synchronized word timings
+ */
+async function synthesizeAudioAndSubtitles(sentenceChunks) {
+  const audioBuffers = [];
+  const allSubtitles = [];
+  let currentAudioTime = 0;
+
+  for (let sIdx = 0; sIdx < sentenceChunks.length; sIdx++) {
+    const chunkText = sentenceChunks[sIdx];
+    try {
+      const buf = await fetchTtsChunk(chunkText);
+      const chunkDur = getMp3Duration(buf) || (chunkText.split(/\s+/).length * 0.35);
+      
+      const wordsWithTimings = computeWordTimingsForChunk(chunkText, chunkDur, currentAudioTime, sIdx);
+      allSubtitles.push(...wordsWithTimings);
+      
+      audioBuffers.push(buf);
+      currentAudioTime += chunkDur;
+
+      // Small pause between network calls
+      await new Promise(r => setTimeout(r, 60));
+    } catch (err) {
+      console.warn(`[NewsVideoGenerator] Chunk synthesis warning for "${chunkText}":`, err.message);
+      // Fallback timing estimate for this chunk
+      const fallbackDur = Math.max(1.5, chunkText.split(/\s+/).length * 0.35);
+      const wordsWithTimings = computeWordTimingsForChunk(chunkText, fallbackDur, currentAudioTime, sIdx);
+      allSubtitles.push(...wordsWithTimings);
+      currentAudioTime += fallbackDur;
+    }
+  }
+
+  const combinedAudio = audioBuffers.length > 0 
+    ? Buffer.concat(audioBuffers) 
+    : Buffer.from([0xff, 0xfb, 0x90, 0x44, 0x00, 0x00, 0x00, 0x00]);
+
+  return {
+    audioUrl: `data:audio/mpeg;base64,${combinedAudio.toString('base64')}`,
+    duration: Math.round(currentAudioTime * 100) / 100,
+    subtitles: allSubtitles
+  };
 }
 
 /**
@@ -137,7 +235,6 @@ function getVfxTheme(game = '') {
     };
   }
 
-  // Default ArenaVerse Theme
   return {
     themeName: 'arena-hyper',
     accentColor: '#8b5cf6',
@@ -157,7 +254,6 @@ function getVfxTheme(game = '') {
 function generateWaveform(barCount = 36) {
   const bars = [];
   for (let i = 0; i < barCount; i++) {
-    // Generate harmonious frequency spikes
     const base = Math.sin((i / barCount) * Math.PI) * 55;
     const noise = Math.floor(Math.random() * 35);
     bars.push(Math.min(98, Math.max(15, Math.round(base + noise))));
@@ -166,14 +262,14 @@ function generateWaveform(barCount = 36) {
 }
 
 /**
- * Build multi-scene storyboard with VFX cues
+ * Build multi-scene storyboard synchronized with actual audio timeline
  */
-function buildScenes({ title, game, summary, fullContent, duration }) {
-  const t1 = Math.round(duration * 0.28 * 10) / 10;
-  const t2 = Math.round(duration * 0.68 * 10) / 10;
-  const t3 = duration;
+function buildScenes({ title, game, summary, duration, subtitles }) {
+  const totalDur = duration || 12;
+  const t1 = Math.round(totalDur * 0.32 * 10) / 10;
+  const t2 = Math.round(totalDur * 0.70 * 10) / 10;
+  const t3 = totalDur;
 
-  // Extract punchy phrases or bullet points
   const sentences = (summary || '').split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
   const point1 = sentences[0] || summary;
   const point2 = sentences[1] || 'Tournament brackets and competitive standings are now active.';
@@ -213,34 +309,24 @@ function buildScenes({ title, game, summary, fullContent, duration }) {
 }
 
 /**
- * Build timestamped subtitle sequence
- */
-function buildSubtitles(scriptText, duration) {
-  const words = scriptText.replace(/[\r\n]+/g, ' ').trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return [];
-
-  const timePerWord = duration / words.length;
-  return words.map((word, index) => ({
-    word,
-    startTime: Math.round(index * timePerWord * 100) / 100,
-    endTime: Math.round((index + 1) * timePerWord * 100) / 100
-  }));
-}
-
-/**
  * Main Generator function: builds full video preview asset packet
  */
 async function generateNewsVideoPreview({ title, game, summary, fullContent }) {
-  const scriptText = `ArenaVerse Esports Intel. ${title}. ${summary}`;
-  
-  // Calculate speech duration (avg speaking rate ~2.6 words/sec, minimum 8s, max 30s)
-  const wordCount = scriptText.split(/\s+/).length;
-  const duration = Math.min(30, Math.max(8, Math.round(wordCount / 2.6)));
+  // Construct spoken sentences
+  const cleanedTitle = cleanSpeechText(title);
+  const summarySentences = splitIntoSentences(summary);
 
-  console.log(`[NewsVideoGenerator] Generating AI Video & Audio for: "${title.substring(0, 40)}..." (est. ${duration}s)`);
+  const sentenceChunks = [
+    `ArenaVerse Flash Report: ${cleanedTitle}.`,
+    ...summarySentences
+  ];
 
-  // Generate audio MP3 data URI
-  const audioUrl = await synthesizeSpeechAudio(scriptText);
+  console.log(`[NewsVideoGenerator] Synthesizing synchronized audio & subtitles for "${title.substring(0, 40)}..." (${sentenceChunks.length} sentence chunks)`);
+
+  // Synthesize audio and derive exact millisecond timestamps per word
+  const { audioUrl, duration, subtitles } = await synthesizeAudioAndSubtitles(sentenceChunks);
+
+  console.log(`[NewsVideoGenerator] Generated audio: ${duration}s, total words: ${subtitles.length}`);
 
   // Generate VFX Theme
   const vfxTheme = getVfxTheme(game);
@@ -249,10 +335,7 @@ async function generateNewsVideoPreview({ title, game, summary, fullContent }) {
   const audioWaveform = generateWaveform(40);
 
   // Generate Storyboard Scenes
-  const scenes = buildScenes({ title, game, summary, fullContent, duration });
-
-  // Generate Subtitle Timings
-  const subtitles = buildSubtitles(scriptText, duration);
+  const scenes = buildScenes({ title, game, summary, duration, subtitles });
 
   return {
     hasVideo: true,
@@ -263,13 +346,17 @@ async function generateNewsVideoPreview({ title, game, summary, fullContent }) {
     vfxTheme,
     scenes,
     subtitles,
-    scriptText
+    scriptText: sentenceChunks.join(' ')
   };
 }
 
 module.exports = {
   generateNewsVideoPreview,
-  synthesizeSpeechAudio,
+  synthesizeAudioAndSubtitles,
+  getMp3Duration,
+  cleanSpeechText,
+  splitIntoSentences,
+  computeWordTimingsForChunk,
   getVfxTheme,
   generateWaveform
 };

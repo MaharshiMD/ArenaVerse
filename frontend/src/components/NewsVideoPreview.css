@@ -372,36 +372,65 @@
 /* Subtitles */
 .subtitle-display {
   text-align: center;
-  max-width: 92%;
+  max-width: 94%;
   z-index: 10;
-  background: rgba(0, 0, 0, 0.65);
-  padding: 0.75rem 1.25rem;
+  background: rgba(8, 7, 18, 0.78);
+  padding: 0.85rem 1.4rem;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(14px);
   margin-top: auto;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(139, 92, 246, 0.2);
+  transition: all 0.3s ease;
+}
+
+.subtitle-display.kinetic-mode {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.subtitle-display.full-transcript-mode {
+  max-height: 120px;
+  overflow-y: auto;
 }
 
 .subtitle-text {
-  font-size: 1.05rem;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.45);
+  font-size: 1.15rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.4);
   font-weight: 500;
   margin: 0;
+  letter-spacing: 0.3px;
 }
 
 .subtitle-word {
-  transition: color 0.1s ease, text-shadow 0.1s ease;
+  display: inline-block;
+  padding: 1px 3px;
+  margin: 1px 2px;
+  border-radius: 4px;
+  transition: all 0.08s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform, color, background-color;
 }
 
 .subtitle-word.active-word {
-  color: #ffffff;
-  text-shadow: 0 0 10px var(--theme-accent, #8b5cf6), 0 0 18px var(--theme-accent, #8b5cf6);
+  color: #ffffff !important;
+  background: rgba(139, 92, 246, 0.45);
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.6), inset 0 0 8px rgba(255, 255, 255, 0.3);
+  text-shadow: 0 0 10px #ffffff, 0 0 20px var(--theme-secondary, #ec4899), 0 0 30px var(--theme-accent, #8b5cf6);
   font-weight: 800;
+  transform: scale(1.15) translateY(-1px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .subtitle-word.read-word {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+}
+
+.subtitle-word.upcoming-word {
+  color: rgba(255, 255, 255, 0.35);
 }
 
 /* Video Controls */
