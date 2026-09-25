@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import { Wallet, ArrowDownRight, ArrowUpRight, Coins, RefreshCw, CreditCard, ShieldCheck, CheckCircle2, Zap } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
 import './ArenaWallet.css';
 
 const ArenaWallet = () => {
   const { user, getAuthHeader } = useAuth();
+  const socket = useSocket();
   const [wallet, setWallet] = useState(null);
   const [loading, setLoading] = useState(true);
   const [depositAmount, setDepositAmount] = useState('500');
@@ -30,6 +32,25 @@ const ArenaWallet = () => {
       setLoading(false);
     }
   };
+
+  // Real-time automatic wallet balance updates when tournament prize is delivered
+  useEffect(() => {
+    if (!socket) return;
+    const handleWalletRefresh = (data) => {
+      fetchWallet();
+      if (data?.balanceChange) {
+        setActionMessage(`🏆 Tournament Prize Payout: ₹${data.balanceChange} was automatically credited to your wallet!`);
+      }
+    };
+
+    socket.on('wallet_updated', handleWalletRefresh);
+    socket.on('tournament_completed', handleWalletRefresh);
+
+    return () => {
+      socket.off('wallet_updated', handleWalletRefresh);
+      socket.off('tournament_completed', handleWalletRefresh);
+    };
+  }, [socket]);
 
   const handleDepositRazorpay = async (e) => {
     e.preventDefault();

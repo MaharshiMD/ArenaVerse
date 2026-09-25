@@ -10,7 +10,7 @@ const generateInviteCode = () => {
 // @route   POST /api/teams
 // @access  Private (Player role preferred, but allowed for all authenticated users)
 const createTeam = async (req, res) => {
-  const { name, description, logo } = req.body;
+  const { name, description, logo, maxMembers } = req.body;
 
   try {
     if (!name) {
@@ -24,10 +24,18 @@ const createTeam = async (req, res) => {
 
     const inviteCode = generateInviteCode();
 
+    let parsedMaxMembers = parseInt(maxMembers, 10);
+    if (isNaN(parsedMaxMembers) || parsedMaxMembers < 2) {
+      parsedMaxMembers = 5;
+    } else if (parsedMaxMembers > 12) {
+      parsedMaxMembers = 12;
+    }
+
     const team = await Team.create({
       name: name.trim(),
       description,
       logo,
+      maxMembers: parsedMaxMembers,
       captain: req.user._id,
       members: [req.user._id],
       inviteCode,

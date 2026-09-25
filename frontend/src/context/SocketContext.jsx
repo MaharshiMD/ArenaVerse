@@ -6,34 +6,32 @@ import { API_BASE_URL } from '../config/api';
 const SocketContext = createContext(null);
 
 export const SocketProvider = ({ children }) => {
-  const { token } = useAuth();
+  const { user, token } = useAuth();
   const [socket, setSocket] = useState(null);
 
   useEffect(() => {
-    if (!token) {
-      if (socket) {
-        socket.disconnect();
-        setSocket(null);
-      }
-      return;
-    }
-
-    // Connect to backend WebSocket server
+    // Connect to backend WebSocket server (works for both visitors and authenticated players)
     const newSocket = io(API_BASE_URL, {
       transports: ['websocket'],
-      auth: { token },
+      auth: { token: token || '' },
     });
 
     setSocket(newSocket);
 
     newSocket.on('connect', () => {
-      console.log('WebSocket connected:', newSocket.id);
+      if (user?.id) {
+        newSocket.emit('join_user', user.id);
+      }
     });
+
+    if (user?.id) {
+      newSocket.emit('join_user', user.id);
+    }
 
     return () => {
       newSocket.disconnect();
     };
-  }, [token]);
+  }, [token, user?.id]);
 
   return (
     <SocketContext.Provider value={socket}>

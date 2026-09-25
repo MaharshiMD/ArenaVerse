@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Trophy, Crown, Coins, Award, Star, Shield, Flame, Sparkles, UserCheck, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import AvatarFrame from '../components/AvatarFrame';
+import { useSocket } from '../context/SocketContext';
 import { API_BASE_URL } from '../config/api';
 import './HallOfFame.css';
 
 const HallOfFame = () => {
+  const socket = useSocket();
   const [data, setData] = useState({ topEarners: [], champions: [], topTeams: [] });
   const [activeTab, setActiveTab] = useState('earners'); // 'earners', 'champions', 'teams'
   const [loading, setLoading] = useState(true);
@@ -24,6 +26,22 @@ const HallOfFame = () => {
       setLoading(false);
     }
   };
+
+  // Real-time automatic update when any tournament completes
+  useEffect(() => {
+    if (!socket) return;
+    const handleLiveUpdate = () => {
+      fetchHallOfFame();
+    };
+
+    socket.on('hall_of_fame_updated', handleLiveUpdate);
+    socket.on('tournament_completed', handleLiveUpdate);
+
+    return () => {
+      socket.off('hall_of_fame_updated', handleLiveUpdate);
+      socket.off('tournament_completed', handleLiveUpdate);
+    };
+  }, [socket]);
 
   if (loading) {
     return (

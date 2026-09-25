@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Trophy, Award, Medal, Crown, Flame, Filter, Calendar, Shield, Swords, Coins, Percent, ArrowUpRight } from 'lucide-react';
+import { useSocket } from '../context/SocketContext';
 import { API_BASE_URL } from '../config/api';
 import './Leaderboard.css';
 
 const Leaderboard = () => {
+  const socket = useSocket();
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -41,6 +43,22 @@ const Leaderboard = () => {
   useEffect(() => {
     fetchLeaderboard();
   }, [selectedGame, timeframe]);
+
+  // Live real-time updates when any tournament completes or leaderboard refreshes
+  useEffect(() => {
+    if (!socket) return;
+    const handleLiveRefresh = () => {
+      fetchLeaderboard();
+    };
+
+    socket.on('leaderboard_updated', handleLiveRefresh);
+    socket.on('tournament_completed', handleLiveRefresh);
+
+    return () => {
+      socket.off('leaderboard_updated', handleLiveRefresh);
+      socket.off('tournament_completed', handleLiveRefresh);
+    };
+  }, [socket, selectedGame, timeframe]);
 
   const top1 = leaderboardData[0];
   const top2 = leaderboardData[1];

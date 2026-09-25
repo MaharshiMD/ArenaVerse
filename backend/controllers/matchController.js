@@ -4,6 +4,7 @@ const Team = require('../models/Team');
 const TournamentResult = require('../models/TournamentResult');
 const Wallet = require('../models/Wallet');
 const FinancialTransaction = require('../models/FinancialTransaction');
+const { finalizeTournamentCompletion } = require('../utils/tournamentFinalizer');
 
 const processPayout = async (tournamentId, userId, amount, position) => {
   if (!amount || amount <= 0) return;
@@ -49,125 +50,8 @@ const getPrizeAmount = (distribution, position) => {
   return pd ? pd.amount : 0;
 };
 
-const createTournamentResults = async (tournamentId, winnerId, loserId) => {
-  try {
-    const tournament = await Tournament.findById(tournamentId);
-    if (!tournament) return;
-
-    // Check if results already exist for this tournament to avoid duplicates
-    const count = await TournamentResult.countDocuments({ tournament: tournamentId });
-    if (count > 0) return;
-
-    const prize1st = getPrizeAmount(tournament.prizeDistribution, 1);
-    const prize2nd = getPrizeAmount(tournament.prizeDistribution, 2);
-
-    if (tournament.type === 'solo') {
-      if (winnerId) {
-        await TournamentResult.create({
-          tournament: tournamentId,
-          player: winnerId,
-          team: null,
-          teamName: '',
-          placement: 1,
-          prizeWon: prize1st,
-        });
-        if (tournament.prizePoolStatus === 'FUNDED') {
-          await processPayout(tournamentId, winnerId, prize1st, 1);
-        }
-      }
-      if (loserId) {
-        await TournamentResult.create({
-          tournament: tournamentId,
-          player: loserId,
-          team: null,
-          teamName: '',
-          placement: 2,
-          prizeWon: prize2nd,
-        });
-        if (tournament.prizePoolStatus === 'FUNDED') {
-          await processPayout(tournamentId, loserId, prize2nd, 2);
-        }
-      }
-      for (let pId of tournament.registeredPlayers) {
-        if (pId.toString() !== winnerId?.toString() && pId.toString() !== loserId?.toString()) {
-          await TournamentResult.create({
-            tournament: tournamentId,
-            player: pId,
-            team: null,
-            teamName: '',
-            placement: 3,
-            prizeWon: 0,
-          });
-        }
-      }
-    } else {
-      if (winnerId) {
-        const winnerTeam = await Team.findById(winnerId).populate('members');
-        if (winnerTeam && winnerTeam.members.length > 0) {
-          const splitPrize = Math.floor(prize1st / winnerTeam.members.length);
-          for (let member of winnerTeam.members) {
-            const mId = member._id || member;
-            await TournamentResult.create({
-              tournament: tournamentId,
-              player: mId,
-              team: winnerTeam._id,
-              teamName: winnerTeam.name,
-              placement: 1,
-              prizeWon: splitPrize,
-            });
-            if (tournament.prizePoolStatus === 'FUNDED') {
-              await processPayout(tournamentId, mId, splitPrize, 1);
-            }
-          }
-        }
-      }
-      if (loserId) {
-        const loserTeam = await Team.findById(loserId).populate('members');
-        if (loserTeam && loserTeam.members.length > 0) {
-          const splitPrize = Math.floor(prize2nd / loserTeam.members.length);
-          for (let member of loserTeam.members) {
-            const mId = member._id || member;
-            await TournamentResult.create({
-              tournament: tournamentId,
-              player: mId,
-              team: loserTeam._id,
-              teamName: loserTeam.name,
-              placement: 2,
-              prizeWon: splitPrize,
-            });
-            if (tournament.prizePoolStatus === 'FUNDED') {
-              await processPayout(tournamentId, mId, splitPrize, 2);
-            }
-          }
-        }
-      }
-      for (let teamId of tournament.registeredTeams) {
-        if (teamId.toString() !== winnerId?.toString() && teamId.toString() !== loserId?.toString()) {
-          const otherTeam = await Team.findById(teamId).populate('members');
-          if (otherTeam) {
-            for (let member of otherTeam.members) {
-              await TournamentResult.create({
-                tournament: tournamentId,
-                player: member._id || member,
-                team: otherTeam._id,
-                teamName: otherTeam.name,
-                placement: 3,
-                prizeWon: 0,
-              });
-            }
-          }
-        }
-      }
-    }
-
-    if (tournament.prizePoolStatus === 'FUNDED') {
-      tournament.prizePoolStatus = 'PRIZES_PAID';
-      tournament.resultsFinalizedAt = new Date();
-      await tournament.save();
-    }
-  } catch (err) {
-    console.error('Error creating tournament results:', err);
-  }
+const createTournamentResults = async (tournamentId, winnerId, loserId, io) => {
+  return await finalizeTournamentCompletion(tournamentId, { winnerId, loserId, io });
 };
 
 // @desc    Update match score and progress winner
@@ -276,7 +160,11 @@ const updateMatchScore = async (req, res) => {
       tournament.winnerName = winnerName;
       tournament.runnerUpName = loserName;
       await tournament.save();
-      await createTournamentResults(tournament._id, winnerId, loserId);
+      await finalizeTournamentCompletion(tournament._id, {
+        winnerId,
+        loserId,
+        io: req.io,
+      });
     }
 
     // Progress Loser (For Double Elimination Loser Bracket)

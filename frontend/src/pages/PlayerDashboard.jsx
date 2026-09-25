@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import { User, Shield, Trophy, Settings, Users, LogOut, Award, UserPlus, Instagram, MessageSquare, Youtube, Rss, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import TeamChat from '../components/TeamChat';
@@ -93,9 +94,12 @@ const PlayerDashboard = () => {
   const [error, setError] = useState('');
   const [payments, setPayments] = useState([]);
 
+  const socket = useSocket();
+
   // Team creation states
   const [teamName, setTeamName] = useState('');
   const [teamDesc, setTeamDesc] = useState('');
+  const [teamMaxMembers, setTeamMaxMembers] = useState(5);
   const [teamError, setTeamError] = useState('');
   const [teamSuccess, setTeamSuccess] = useState('');
 
@@ -221,6 +225,24 @@ const PlayerDashboard = () => {
       fetchDashboardData();
     }
   }, [user]);
+
+  // Live real-time dashboard updates when tournaments complete or wallet updates
+  useEffect(() => {
+    if (!socket || !user) return;
+    const handleUpdate = () => {
+      fetchDashboardData();
+    };
+
+    socket.on('tournament_completed', handleUpdate);
+    socket.on('wallet_updated', handleUpdate);
+    socket.on('match_updated', handleUpdate);
+
+    return () => {
+      socket.off('tournament_completed', handleUpdate);
+      socket.off('wallet_updated', handleUpdate);
+      socket.off('match_updated', handleUpdate);
+    };
+  }, [socket, user]);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -350,14 +372,19 @@ const PlayerDashboard = () => {
           'Content-Type': 'application/json',
           ...getAuthHeader(),
         },
-        body: JSON.stringify({ name: teamName, description: teamDesc }),
+        body: JSON.stringify({
+          name: teamName,
+          description: teamDesc,
+          maxMembers: Number(teamMaxMembers) || 5,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to create team');
 
-      setTeamSuccess(`Squad '${data.name}' formed successfully!`);
+      setTeamSuccess(`Squad '${data.name}' formed successfully (Capacity: ${data.maxMembers || teamMaxMembers} players)!`);
       setTeamName('');
       setTeamDesc('');
+      setTeamMaxMembers(5);
       fetchDashboardData();
     } catch (err) {
       setTeamError(err.message);
@@ -709,6 +736,21 @@ const PlayerDashboard = () => {
                   <div className="form-group">
                     <label className="form-label">Description</label>
                     <input type="text" className="form-control" placeholder="Challengers division EU" value={teamDesc} onChange={e => setTeamDesc(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Team Member Limit (Roster Size)</span>
+                      <span className="text-secondary text-xs">2 to 5 players (up to 12)</span>
+                    </label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      min="2"
+                      max="12"
+                      value={teamMaxMembers}
+                      onChange={e => setTeamMaxMembers(e.target.value)}
+                      required
+                    />
                   </div>
                   <button type="submit" className="btn btn-primary btn-full">Create Squad</button>
                 </form>

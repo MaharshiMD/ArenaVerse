@@ -11,6 +11,7 @@ const {
   generateSingleElimination,
   generateDoubleElimination,
 } = require('../utils/bracketGenerator');
+const { finalizeTournamentCompletion } = require('../utils/tournamentFinalizer');
 
 // @desc    Create tournament
 // @route   POST /api/tournaments
@@ -1255,6 +1256,11 @@ const submitBRMatchResult = async (req, res) => {
         tournament.runnerUpName = leaderboard[1]?.teamName || '';
         tournament.resultsFinalizedAt = new Date();
         await tournament.save();
+
+        await finalizeTournamentCompletion(tournament._id, {
+          brLeaderboard: leaderboard,
+          io: req.io,
+        });
       }
     }
 

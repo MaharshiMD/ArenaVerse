@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import TournamentCard from '../components/TournamentCard';
 import { Search, Filter, Trophy, Users, Shield, Star, DollarSign, Globe, ArrowRight, RotateCcw, X, Check } from 'lucide-react';
+import { useSocket } from '../context/SocketContext';
 import { API_BASE_URL } from '../config/api';
 import './TournamentList.css';
 
@@ -57,6 +58,7 @@ const TournamentList = () => {
   // Dropdown Panel Toggle & Ref
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const filterRef = useRef(null);
+  const socket = useSocket();
 
   const [searchResults, setSearchResults] = useState({
     tournaments: [],
@@ -149,6 +151,18 @@ const TournamentList = () => {
   useEffect(() => {
     fetchSearchResults();
   }, [search, activeType, gameFilter, statusFilter, feeTypeFilter, regionFilter, minPrizeFilter, formatFilter, dateFilter, organizerFilter]);
+
+  // Live real-time update when tournament status changes
+  useEffect(() => {
+    if (!socket) return;
+    const handleUpdate = () => {
+      fetchSearchResults();
+    };
+    socket.on('tournament_completed', handleUpdate);
+    return () => {
+      socket.off('tournament_completed', handleUpdate);
+    };
+  }, [socket]);
 
   const DEFAULT_AVATAR = '/images/default-avatar.png';
 
