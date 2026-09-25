@@ -289,8 +289,17 @@ const transferWalletFunds = async (req, res) => {
     let recipientUser = null;
     if (recipientId) {
       recipientUser = await User.findById(recipientId);
-    } else if (recipientUsername) {
-      recipientUser = await User.findOne({ username: recipientUsername.trim() });
+    } 
+    if (!recipientUser && recipientUsername) {
+      const cleanInput = recipientUsername.trim().replace(/^@/, '');
+      recipientUser = await User.findOne({
+        username: { $regex: new RegExp(`^${cleanInput}$`, 'i') }
+      });
+      if (!recipientUser) {
+        recipientUser = await User.findOne({
+          email: { $regex: new RegExp(`^${cleanInput}$`, 'i') }
+        });
+      }
     }
 
     if (!recipientUser) {

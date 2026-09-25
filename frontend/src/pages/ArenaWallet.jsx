@@ -275,19 +275,17 @@ const ArenaWallet = () => {
     setActionMessage('');
     const amt = Number(transferAmount);
     if (!amt || amt <= 0) {
-      setActionMessage('⚠️ Please enter a valid transfer amount.');
+      setActionMessage('⚠️ Please enter a valid transfer amount greater than ₹0.');
       return;
     }
     if (wallet && wallet.balance < amt) {
-      setActionMessage(`⚠️ Insufficient wallet balance. You have ₹${wallet.balance}, but tried to transfer ₹${amt}.`);
+      setActionMessage(`⚠️ Insufficient wallet balance! Your available balance is ₹${(wallet.balance || 0).toLocaleString('en-IN')}, but you entered ₹${amt.toLocaleString('en-IN')}.`);
       return;
     }
-    if (transferMode === 'team' && !selectedMemberId) {
-      setActionMessage('⚠️ Please select a team member from your squad to receive the funds.');
-      return;
-    }
-    if (transferMode === 'username' && !transferUsername.trim()) {
-      setActionMessage('⚠️ Please enter the recipient player username.');
+    
+    const cleanUsername = (transferUsername || '').trim().replace(/^@/, '');
+    if (!selectedMemberId && !cleanUsername) {
+      setActionMessage('⚠️ Please specify a recipient teammate: type their username manually or click a squad member.');
       return;
     }
 
@@ -297,12 +295,9 @@ const ArenaWallet = () => {
         amount: amt,
         note: transferNote,
         teamId: selectedTeamId || undefined,
+        recipientId: selectedMemberId || undefined,
+        recipientUsername: cleanUsername || undefined,
       };
-      if (transferMode === 'team') {
-        payload.recipientId = selectedMemberId;
-      } else {
-        payload.recipientUsername = transferUsername.trim();
-      }
 
       const res = await fetch(`${API_BASE_URL}/api/nextgen/wallet/transfer`, {
         method: 'POST',
@@ -464,114 +459,110 @@ const ArenaWallet = () => {
               Easily distribute tournament prize winnings or send funds to any specific teammate or squad member instantly.
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              type="button"
-              className={`btn btn-sm ${transferMode === 'team' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setTransferMode('team')}
-              style={{ fontSize: '0.75rem', padding: '5px 12px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-            >
-              <Users size={13} /> Select From Squads
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${transferMode === 'username' ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setTransferMode('username')}
-              style={{ fontSize: '0.75rem', padding: '5px 12px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-            >
-              <Send size={13} /> Transfer by Username
-            </button>
-          </div>
         </div>
 
         <form onSubmit={handleTransferFunds}>
-          {transferMode === 'team' ? (
-            <div className="grid-2 gap-4 mb-3">
-              {/* Squad Selector */}
-              <div className="form-group">
-                <label className="form-label text-xs text-secondary font-bold">1. Select Squad</label>
-                {myTeams.length === 0 ? (
-                  <p className="text-muted text-xs p-2" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                    You have not joined any squads yet. You can switch to "Transfer by Username" to send funds!
-                  </p>
-                ) : (
-                  <select
-                    className="form-control"
-                    value={selectedTeamId}
-                    onChange={(e) => {
-                      setSelectedTeamId(e.target.value);
-                      setSelectedMemberId('');
-                    }}
-                    style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px' }}
-                  >
-                    {myTeams.map(t => (
-                      <option key={t._id} value={t._id}>
-                        {t.name} ({t.members.length} members)
-                      </option>
-                    ))}
-                  </select>
+          <div className="grid-2 gap-4 mb-3">
+            {/* Squad / Team Context */}
+            <div className="form-group">
+              <label className="form-label text-xs text-secondary font-bold">Squad Context (Optional)</label>
+              {myTeams.length === 0 ? (
+                <p className="text-muted text-xs p-2" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
+                  No squads found. You can write the recipient's username manually in the field on the right!
+                </p>
+              ) : (
+                <select
+                  className="form-control"
+                  value={selectedTeamId}
+                  onChange={(e) => {
+                    setSelectedTeamId(e.target.value);
+                  }}
+                  style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px' }}
+                >
+                  <option value="">-- Direct Transfer (No Squad) --</option>
+                  {myTeams.map(t => (
+                    <option key={t._id} value={t._id}>
+                      {t.name} ({t.members.length} members)
+                    </option>
+                  ))}
+                </select>
+              )}
+              <small className="text-muted text-xs mt-1 block">
+                Selecting a squad lets you click quick teammate shortcuts below.
+              </small>
+            </div>
+
+            {/* Recipient Teammate / Username Input */}
+            <div className="form-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label className="form-label text-xs text-secondary font-bold m-0">
+                  Recipient Teammate / Username <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                {(selectedMemberId || transferUsername) && (
+                  <span className="text-success text-xs" style={{ fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                    <CheckCircle2 size={12} /> Ready
+                  </span>
                 )}
               </div>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Type teammate username (e.g. Mouse, DuoEnough, Ujjas)..."
+                value={transferUsername}
+                onChange={e => {
+                  const val = e.target.value;
+                  setTransferUsername(val);
+                  const matched = (currentTeamTeammates || []).find(
+                    m => m.username?.toLowerCase() === val.toLowerCase().trim().replace(/^@/, '')
+                  );
+                  setSelectedMemberId(matched ? matched._id : '');
+                }}
+                style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px' }}
+                required
+              />
 
-              {/* Teammates List */}
-              <div className="form-group">
-                <label className="form-label text-xs text-secondary font-bold">
-                  2. Choose Specific Teammate <span style={{ color: '#ef4444' }}>*</span>
-                </label>
-                {currentTeamTeammates.length === 0 ? (
-                  <p className="text-muted text-xs p-2" style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                    No other players in this squad. Switch to "Transfer by Username" above.
-                  </p>
-                ) : (
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {/* Clickable Quick Teammate Chips */}
+              {currentTeamTeammates && currentTeamTeammates.length > 0 && (
+                <div style={{ marginTop: '8px' }}>
+                  <span className="text-secondary text-xs block mb-1" style={{ fontSize: '11px' }}>
+                    Quick Select From Selected Squad:
+                  </span>
+                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                     {currentTeamTeammates.map(m => {
                       const isCap = (currentSelectedTeam?.captain?._id || currentSelectedTeam?.captain)?.toString() === m._id.toString();
-                      const isSelected = selectedMemberId === m._id;
+                      const isSelected = selectedMemberId === m._id || transferUsername.toLowerCase().trim().replace(/^@/, '') === m.username.toLowerCase();
                       return (
                         <button
                           key={m._id}
                           type="button"
                           className="btn btn-sm"
-                          onClick={() => setSelectedMemberId(m._id)}
+                          onClick={() => {
+                            setSelectedMemberId(m._id);
+                            setTransferUsername(m.username);
+                          }}
                           style={{
-                            background: isSelected ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255,255,255,0.05)',
+                            background: isSelected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255,255,255,0.06)',
                             color: isSelected ? '#10b981' : '#e2e8f0',
-                            border: isSelected ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)',
-                            borderRadius: '8px',
-                            padding: '6px 12px',
+                            border: isSelected ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: '6px',
+                            padding: '3px 8px',
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: '6px',
-                            fontSize: '0.8rem',
+                            gap: '4px',
+                            fontSize: '0.75rem',
                             cursor: 'pointer'
                           }}
                         >
-                          <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 'bold' }}>
-                            {m.username.charAt(0).toUpperCase()}
-                          </div>
                           <span>@{m.username}</span>
-                          {isCap && <span style={{ fontSize: '10px', color: '#f59e0b' }}>👑 Captain</span>}
+                          {isCap && <span style={{ fontSize: '9px', color: '#f59e0b' }}>👑</span>}
                         </button>
                       );
                     })}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="form-group mb-3">
-              <label className="form-label text-xs text-secondary font-bold">Recipient Player Username <span style={{ color: '#ef4444' }}>*</span></label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Enter exact gamer username (e.g. Mouse, DuoEnough, Ujjas)"
-                value={transferUsername}
-                onChange={e => setTransferUsername(e.target.value)}
-                style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px' }}
-                required
-              />
-            </div>
-          )}
+          </div>
 
           {/* Amount and Note */}
           <div className="grid-2 gap-4 mb-3">
@@ -583,11 +574,11 @@ const ArenaWallet = () => {
               <input
                 type="number"
                 className="form-control"
-                placeholder="Enter amount to transfer"
+                placeholder="Enter amount manually (e.g. 10379)"
                 value={transferAmount}
                 onChange={e => setTransferAmount(e.target.value)}
-                min={1}
-                max={wallet?.balance || 0}
+                min="1"
+                step="any"
                 style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '8px' }}
                 required
               />
@@ -634,7 +625,7 @@ const ArenaWallet = () => {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={transferProcessing || !transferAmount || Number(transferAmount) <= 0 || (transferMode === 'team' && !selectedMemberId && currentTeamTeammates.length > 0) || (transferMode === 'username' && !transferUsername.trim())}
+              disabled={transferProcessing || !transferAmount || Number(transferAmount) <= 0 || (!selectedMemberId && !transferUsername.trim())}
               style={{
                 background: '#10b981',
                 borderColor: '#10b981',
