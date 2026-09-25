@@ -8,21 +8,21 @@ const https = require('https');
 function getMp3Duration(buf) {
   let offset = 0;
   let totalSamples = 0;
-  let sampleRate = 44100;
+  let sampleRate = 48000;
   const sampleRates = [44100, 48000, 32000];
   const bitrates = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0];
 
   while (offset < buf.length - 4) {
     if (buf[offset] === 0xFF && (buf[offset + 1] & 0xE0) === 0xE0) {
-      const bitrateIndex = (buf[offset + 2] >> 4) & 0x0F;
-      const sampleRateIndex = (buf[offset + 2] >> 2) & 0x03;
+      const sIdx = (buf[offset + 2] >> 2) & 0x03;
+      const bIdx = (buf[offset + 2] >> 4) & 0x0F;
       const padding = (buf[offset + 2] >> 1) & 0x01;
-      sampleRate = sampleRates[sampleRateIndex] || 44100;
-      const bitrate = (bitrates[bitrateIndex] || 128) * 1000;
-      const frameLength = Math.floor((144 * bitrate) / sampleRate) + padding;
-      if (frameLength > 0) {
+      sampleRate = sampleRates[sIdx] || 48000;
+      const bitrate = (bitrates[bIdx] || 112) * 1000;
+      const frameLen = Math.floor((144 * bitrate) / sampleRate) + padding;
+      if (frameLen > 0) {
         totalSamples += 1152;
-        offset += frameLength;
+        offset += frameLen;
         continue;
       }
     }
@@ -89,7 +89,6 @@ function cleanSpeechText(text = '') {
  */
 function splitIntoSentences(text) {
   const cleaned = cleanSpeechText(text);
-  // Split on sentence punctuation or semicolons
   const parts = cleaned.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(Boolean);
   
   const sentences = [];
@@ -97,7 +96,6 @@ function splitIntoSentences(text) {
     if (part.length <= 130) {
       sentences.push(part);
     } else {
-      // Split on commas if a sentence is too long
       const subParts = part.split(/(?<=[,;])\s+/).map(s => s.trim()).filter(Boolean);
       sentences.push(...subParts);
     }
@@ -107,25 +105,29 @@ function splitIntoSentences(text) {
 
 /**
  * Compute millisecond-accurate word timings for a specific audio chunk
+ * using true acoustic modeling (base vocalization time + phoneme character time + punctuation pause)
  */
 function computeWordTimingsForChunk(chunkText, chunkDuration, baseTime, sentenceIndex) {
   const words = chunkText.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
 
-  // Calculate relative weight for each word based on length and punctuation
-  const weights = words.map(w => {
-    let weight = Math.max(2, w.length);
-    if (/[,;:]$/.test(w)) weight += 2.0; // short breath pause
-    if (/[.!?]$/.test(w)) weight += 4.0; // sentence end pause
-    return weight;
+  // Model natural acoustic vocalization duration
+  const rawDurations = words.map(w => {
+    const lettersOnly = w.replace(/[^a-zA-Z0-9]/g, '');
+    let dur = 0.22 + Math.min(10, lettersOnly.length) * 0.024;
+    if (/[,;:]$/.test(w)) dur += 0.16; // natural clause/comma pause
+    if (/[.!?]$/.test(w)) dur += 0.28; // natural sentence-ending pause
+    return dur;
   });
 
-  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  const totalRaw = rawDurations.reduce((a, b) => a + b, 0);
+  const scaleFactor = chunkDuration / (totalRaw || 1);
+
   let curTime = baseTime;
   const result = [];
 
   for (let i = 0; i < words.length; i++) {
-    const wordDur = (weights[i] / totalWeight) * chunkDuration;
+    const wordDur = rawDurations[i] * scaleFactor;
     result.push({
       word: words[i],
       sentenceIndex,
@@ -149,7 +151,7 @@ async function synthesizeAudioAndSubtitles(sentenceChunks) {
     const chunkText = sentenceChunks[sIdx];
     try {
       const buf = await fetchTtsChunk(chunkText);
-      const chunkDur = getMp3Duration(buf) || (chunkText.split(/\s+/).length * 0.35);
+      const chunkDur = getMp3Duration(buf) || (chunkText.split(/\s+/).length * 0.33);
       
       const wordsWithTimings = computeWordTimingsForChunk(chunkText, chunkDur, currentAudioTime, sIdx);
       allSubtitles.push(...wordsWithTimings);
@@ -157,12 +159,10 @@ async function synthesizeAudioAndSubtitles(sentenceChunks) {
       audioBuffers.push(buf);
       currentAudioTime += chunkDur;
 
-      // Small pause between network calls
       await new Promise(r => setTimeout(r, 60));
     } catch (err) {
       console.warn(`[NewsVideoGenerator] Chunk synthesis warning for "${chunkText}":`, err.message);
-      // Fallback timing estimate for this chunk
-      const fallbackDur = Math.max(1.5, chunkText.split(/\s+/).length * 0.35);
+      const fallbackDur = Math.max(1.5, chunkText.split(/\s+/).length * 0.33);
       const wordsWithTimings = computeWordTimingsForChunk(chunkText, fallbackDur, currentAudioTime, sIdx);
       allSubtitles.push(...wordsWithTimings);
       currentAudioTime += fallbackDur;
@@ -312,7 +312,6 @@ function buildScenes({ title, game, summary, duration, subtitles }) {
  * Main Generator function: builds full video preview asset packet
  */
 async function generateNewsVideoPreview({ title, game, summary, fullContent }) {
-  // Construct spoken sentences
   const cleanedTitle = cleanSpeechText(title);
   const summarySentences = splitIntoSentences(summary);
 
@@ -323,18 +322,12 @@ async function generateNewsVideoPreview({ title, game, summary, fullContent }) {
 
   console.log(`[NewsVideoGenerator] Synthesizing synchronized audio & subtitles for "${title.substring(0, 40)}..." (${sentenceChunks.length} sentence chunks)`);
 
-  // Synthesize audio and derive exact millisecond timestamps per word
   const { audioUrl, duration, subtitles } = await synthesizeAudioAndSubtitles(sentenceChunks);
 
   console.log(`[NewsVideoGenerator] Generated audio: ${duration}s, total words: ${subtitles.length}`);
 
-  // Generate VFX Theme
   const vfxTheme = getVfxTheme(game);
-
-  // Generate Waveform
   const audioWaveform = generateWaveform(40);
-
-  // Generate Storyboard Scenes
   const scenes = buildScenes({ title, game, summary, duration, subtitles });
 
   return {
