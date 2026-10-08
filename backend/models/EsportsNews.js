@@ -50,6 +50,13 @@ const esportsNewsSchema = new mongoose.Schema(
       audioUrl: {
         type: String,
       },
+      voice: {
+        id: String,
+        name: String,
+        label: String,
+        gender: String,
+        style: String,
+      },
       audioWaveform: [{
         type: Number,
       }],

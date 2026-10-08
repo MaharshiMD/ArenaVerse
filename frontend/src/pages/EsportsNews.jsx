@@ -38,7 +38,8 @@ const EsportsNews = () => {
     source: 'ArenaVerse Official',
     summary: '',
     fullContent: '',
-    url: ''
+    url: '',
+    voice: 'en-US-ChristopherNeural'
   });
   const [formError, setFormError] = useState('');
 
@@ -94,7 +95,8 @@ const EsportsNews = () => {
         source: 'ArenaVerse Official',
         summary: '',
         fullContent: '',
-        url: ''
+        url: '',
+        voice: 'en-US-ChristopherNeural'
       });
 
       // Automatically offer to preview the newly generated video
@@ -396,7 +398,24 @@ const EsportsNews = () => {
 
               <div className="form-group mb-3">
                 <label className="text-white text-xs font-semibold block mb-1">
-                  Summary (Script for AI Voiceover & Video Preview) *
+                  🎙️ Studio Caster Voice (Natural Human Audio) *
+                </label>
+                <select
+                  className="input-field w-100 text-sm"
+                  value={formData.voice || 'en-US-ChristopherNeural'}
+                  onChange={(e) => setFormData({ ...formData, voice: e.target.value })}
+                >
+                  <option value="en-US-ChristopherNeural">🎙️ Christopher (Studio Shoutcaster - Male)</option>
+                  <option value="en-US-JennyNeural">🎙️ Jenny (Broadcast Host - Female)</option>
+                  <option value="en-US-GuyNeural">🎙️ Guy (News Anchor - Male)</option>
+                  <option value="en-US-AvaNeural">🎙️ Ava (Gaming Streamer - Female)</option>
+                  <option value="en-US-AndrewNeural">🎙️ Andrew (Tournament Narrator - Male)</option>
+                </select>
+              </div>
+
+              <div className="form-group mb-3">
+                <label className="text-white text-xs font-semibold block mb-1">
+                  Summary (Script for Voiceover & Video Preview) *
                 </label>
                 <textarea 
                   required
@@ -471,6 +490,13 @@ const EsportsNews = () => {
             setShowVideoPreview(false);
             setVideoPreviewArticle(null);
           }} 
+          onArticleUpdate={(updatedArticle) => {
+            setVideoPreviewArticle(updatedArticle);
+            setNews(prev => prev.map(n => n._id === updatedArticle._id ? updatedArticle : n));
+            if (selectedArticle && selectedArticle._id === updatedArticle._id) {
+              setSelectedArticle(updatedArticle);
+            }
+          }}
         />
       )}
     </div>

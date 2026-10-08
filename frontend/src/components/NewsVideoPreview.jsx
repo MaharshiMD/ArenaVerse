@@ -9,13 +9,74 @@ import {
   Maximize2, 
   Minimize2, 
   Sparkles, 
-  CheckCircle2
+  CheckCircle2,
+  Mic,
+  ChevronDown,
+  Check,
+  Loader2
 } from 'lucide-react';
+import { API_BASE_URL } from '../config/api';
 import './NewsVideoPreview.css';
 
-const NewsVideoPreview = ({ article, onClose }) => {
-  const videoData = article.videoPreview || {};
+const AVAILABLE_HUMAN_VOICES = [
+  { id: 'en-US-ChristopherNeural', key: 'christopher', name: 'Christopher', label: 'Christopher (Studio Shoutcaster)', gender: 'Male', style: 'Energetic Esports Shoutcaster' },
+  { id: 'en-US-JennyNeural', key: 'jenny', name: 'Jenny', label: 'Jenny (Broadcast Host)', gender: 'Female', style: 'Expressive Broadcast Anchor' },
+  { id: 'en-US-GuyNeural', key: 'guy', name: 'Guy', label: 'Guy (News Anchor)', gender: 'Male', style: 'Authoritative Pro News Anchor' },
+  { id: 'en-US-AvaNeural', key: 'ava', name: 'Ava', label: 'Ava (Lively Host)', gender: 'Female', style: 'Vibrant Modern Gaming Streamer' },
+  { id: 'en-US-AndrewNeural', key: 'andrew', name: 'Andrew', label: 'Andrew (Tournament Narrator)', gender: 'Male', style: 'Deep Narrative Tournament Storyteller' },
+];
+
+/**
+ * Filter and select natural, human-sounding voices from browser Web Speech API
+ */
+const selectNaturalHumanVoice = (synth) => {
+  if (!synth) return null;
+  const voices = synth.getVoices ? synth.getVoices() : [];
+  if (!voices || voices.length === 0) return null;
+
+  // Filter for natural/online voices, avoiding robotic desktop voices
+  const naturalVoices = voices.filter(v => 
+    v.lang.startsWith('en') && (
+      v.name.includes('Natural') || 
+      v.name.includes('Online') || 
+      v.name.includes('Neural') || 
+      v.name.includes('Google') || 
+      v.name.includes('Samantha') || 
+      v.name.includes('Daniel')
+    ) && !v.name.includes('Desktop')
+  );
+
+  if (naturalVoices.length > 0) {
+    const preferred = naturalVoices.find(v => 
+      v.name.includes('Christopher') || 
+      v.name.includes('Guy') || 
+      v.name.includes('Jenny') || 
+      v.name.includes('Google US')
+    );
+    return preferred || naturalVoices[0];
+  }
+
+  // Fallback to non-desktop English voice
+  return voices.find(v => v.lang.startsWith('en') && !v.name.includes('Desktop')) || voices[0] || null;
+};
+
+const NewsVideoPreview = ({ article, onClose, onArticleUpdate }) => {
+  const [videoData, setVideoData] = useState(article.videoPreview || {});
+  const [isSwitchingVoice, setIsSwitchingVoice] = useState(false);
+  const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
+  const voiceMenuRef = useRef(null);
+
+  // Sync internal state if article prop changes externally
+  useEffect(() => {
+    if (article?.videoPreview) {
+      setVideoData(article.videoPreview);
+    }
+  }, [article]);
+
   const hasDbAudio = !!videoData.audioUrl;
+  const currentVoice = videoData.voice || AVAILABLE_HUMAN_VOICES[0];
+  const activeVoiceName = currentVoice.name || 'Christopher';
+
   const scenes = videoData.scenes && videoData.scenes.length > 0 ? videoData.scenes : [
     {
       id: 1,
@@ -28,6 +89,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
       highlightKeywords: [article.game, 'ArenaVerse', 'Official']
     }
   ];
+
   const subtitles = videoData.subtitles || [];
   const vfxTheme = videoData.vfxTheme || {
     themeName: 'arena-hyper',
@@ -37,6 +99,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
     particlesStyle: 'cyber-sparks',
     overlayTag: 'ARENAVERSE REPORT'
   };
+
   const waveformBars = videoData.audioWaveform && videoData.audioWaveform.length > 0
     ? videoData.audioWaveform
     : [35, 60, 85, 45, 90, 70, 40, 80, 55, 65, 95, 30, 75, 50, 85, 40, 60, 90, 45, 70];
@@ -55,6 +118,17 @@ const NewsVideoPreview = ({ article, onClose }) => {
   const activeWordElemRef = useRef(null);
   const subtitleBoxRef = useRef(null);
 
+  // Close voice dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (voiceMenuRef.current && !voiceMenuRef.current.contains(e.target)) {
+        setVoiceMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Pre-index subtitles with stable global indices
   const indexedSubtitles = useMemo(() => {
     return subtitles.map((sub, idx) => ({
@@ -71,7 +145,6 @@ const NewsVideoPreview = ({ article, onClose }) => {
     setCurrentTime(time);
     if (!indexedSubtitles || indexedSubtitles.length === 0) return;
 
-    // Find the exact word where time is within [startTime, endTime]
     let activeIdx = -1;
     for (let i = 0; i < indexedSubtitles.length; i++) {
       if (time >= indexedSubtitles[i].startTime && time < indexedSubtitles[i].endTime) {
@@ -80,7 +153,6 @@ const NewsVideoPreview = ({ article, onClose }) => {
       }
     }
 
-    // If in micro-pause between words, lock to the latest started word
     if (activeIdx === -1) {
       for (let i = indexedSubtitles.length - 1; i >= 0; i--) {
         if (time >= indexedSubtitles[i].startTime) {
@@ -98,6 +170,11 @@ const NewsVideoPreview = ({ article, onClose }) => {
   // Initialize playback immediately from DB audio or speech fallback
   useEffect(() => {
     if (hasDbAudio) {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
+
       const audio = new Audio(videoData.audioUrl);
       audio.preload = 'auto';
       audioRef.current = audio;
@@ -120,7 +197,6 @@ const NewsVideoPreview = ({ article, onClose }) => {
         syncTimeToWord(audio.currentTime);
       };
 
-      // Instant Auto-play from database
       audio.play().catch(() => {
         setIsPlaying(false);
       });
@@ -130,10 +206,17 @@ const NewsVideoPreview = ({ article, onClose }) => {
         audio.src = '';
       };
     } else {
-      // Fallback: Web Speech API for legacy articles without DB audio
+      // Natural human voice speech synthesis fallback
       const text = `ArenaVerse Flash Report: ${article.title}. ${article.summary}`;
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+
+      const humanVoice = selectNaturalHumanVoice(synthRef.current);
+      if (humanVoice) {
+        utterance.voice = humanVoice;
+      }
+
       utteranceRef.current = utterance;
 
       utterance.onstart = () => setIsPlaying(true);
@@ -149,7 +232,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
         synthRef.current?.cancel();
       };
     }
-  }, [article, hasDbAudio]);
+  }, [videoData.audioUrl, hasDbAudio]);
 
   // Smooth scroll active word into view within the subtitle box
   useEffect(() => {
@@ -166,7 +249,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
     }
   }, [activeWordIndex]);
 
-  // High-precision 60FPS animation loop for ultra-smooth UI sync
+  // High-precision 60FPS animation loop for UI sync
   useEffect(() => {
     const updateLoop = () => {
       if (hasDbAudio && audioRef.current && !audioRef.current.paused) {
@@ -196,6 +279,52 @@ const NewsVideoPreview = ({ article, onClose }) => {
 
     return () => cancelAnimationFrame(animationFrameRef.current);
   }, [isPlaying, hasDbAudio, indexedSubtitles, duration]);
+
+  // Switch voice caster handler
+  const handleSwitchVoice = async (voiceObj) => {
+    if (currentVoice.id === voiceObj.id || isSwitchingVoice) {
+      setVoiceMenuOpen(false);
+      return;
+    }
+
+    setIsSwitchingVoice(true);
+    setVoiceMenuOpen(false);
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+    synthRef.current?.cancel();
+    setIsPlaying(false);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/nextgen/esports-news/${article._id}/regenerate-video`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ voice: voiceObj.id })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.videoPreview) {
+        setVideoData(data.videoPreview);
+        setDuration(data.videoPreview.duration || 12);
+        setCurrentTime(0);
+        setActiveWordIndex(0);
+
+        if (onArticleUpdate) {
+          onArticleUpdate({
+            ...article,
+            videoPreview: data.videoPreview
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to switch voice caster:', err);
+    } finally {
+      setIsSwitchingVoice(false);
+    }
+  };
 
   const togglePlayPause = () => {
     if (hasDbAudio && audioRef.current) {
@@ -287,11 +416,60 @@ const NewsVideoPreview = ({ article, onClose }) => {
           <div className="header-meta">
             <div className="db-ready-tag">
               <CheckCircle2 size={13} className="text-emerald-400" />
-              <span>DB STREAM • 100% SYNCED AUDIO & SUBTITLES</span>
+              <span>STUDIO HUMAN VOICE • 100% SYNCED SUBTITLES</span>
             </div>
             <h3 title={article.title}>{article.title}</h3>
           </div>
+
           <div className="header-actions">
+            {/* Voice Caster Switcher */}
+            <div className="voice-selector-wrapper" ref={voiceMenuRef}>
+              <button 
+                type="button"
+                className={`voice-selector-btn ${voiceMenuOpen ? 'active' : ''}`}
+                onClick={() => setVoiceMenuOpen(!voiceMenuOpen)}
+                disabled={isSwitchingVoice}
+                title="Change Human Voice Caster"
+              >
+                <Mic size={14} className="text-purple-400" />
+                <span className="voice-name-label">
+                  Voice: <strong>{activeVoiceName}</strong>
+                </span>
+                <ChevronDown size={13} className="text-slate-400" />
+              </button>
+
+              {voiceMenuOpen && (
+                <div className="voice-dropdown-menu">
+                  <div className="voice-dropdown-header">
+                    <span className="dropdown-title">Select Studio Caster</span>
+                    <span className="dropdown-subtitle">Powered by Neural Human Audio</span>
+                  </div>
+                  <div className="voice-list">
+                    {AVAILABLE_HUMAN_VOICES.map((v) => {
+                      const isSelected = (currentVoice.id === v.id) || (currentVoice.name === v.name);
+                      return (
+                        <button
+                          key={v.id}
+                          type="button"
+                          className={`voice-option-item ${isSelected ? 'selected' : ''}`}
+                          onClick={() => handleSwitchVoice(v)}
+                        >
+                          <div className="voice-option-info">
+                            <div className="voice-option-name">
+                              <span>{v.name}</span>
+                              <span className="voice-gender-pill">{v.gender}</span>
+                            </div>
+                            <span className="voice-option-style">{v.style}</span>
+                          </div>
+                          {isSelected && <Check size={16} className="text-emerald-400 flex-shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button 
               className="theater-toggle-btn"
               onClick={() => setIsTheater(!isTheater)} 
@@ -318,6 +496,15 @@ const NewsVideoPreview = ({ article, onClose }) => {
           className={`video-content-area vfx-${currentScene?.vfxType || 'cinematic-zoom'} ${isPlaying ? 'is-playing' : ''}`}
           style={{ background: vfxTheme.bgGradient || undefined }}
         >
+          {/* Switching Voice Loading Overlay */}
+          {isSwitchingVoice && (
+            <div className="voice-switching-overlay">
+              <Loader2 className="animate-spin text-purple-400 mb-2" size={38} />
+              <h4>Generating Real Human Voice...</h4>
+              <p>Re-synthesizing studio narration with precision-synced subtitles</p>
+            </div>
+          )}
+
           {/* Animated Background Layers */}
           <div className="dynamic-bg-layer"></div>
           <div className={`particles-layer particles-${vfxTheme.particlesStyle || 'cyber-sparks'}`}></div>
@@ -327,7 +514,10 @@ const NewsVideoPreview = ({ article, onClose }) => {
           {/* Top HUD Badges */}
           <div className="video-ui-overlay">
             <div className="hud-left">
-              <span className="live-badge">AI BROADCAST</span>
+              <span className="live-badge">STUDIO BROADCAST</span>
+              <span className="voice-hud-badge">
+                <Mic size={11} /> {activeVoiceName.toUpperCase()} (HUMAN VOICE)
+              </span>
               <span className="game-badge">{article.game || 'Esports'}</span>
             </div>
             <div className="hud-right">
@@ -365,7 +555,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
             </div>
           </div>
 
-          {/* Dynamic Audio Visualizer Waves (Reacting to stored DB frequencies) */}
+          {/* Dynamic Audio Visualizer Waves */}
           <div className="visualizer-container">
             {waveformBars.slice(0, 24).map((height, barIndex) => {
               const animatedHeight = isPlaying 
@@ -447,7 +637,7 @@ const NewsVideoPreview = ({ article, onClose }) => {
             <div className="controls-center">
               <span className="vfx-engine-label">
                 <span className="pulse-dot"></span>
-                100% Synced Narration & Subtitles • {vfxTheme.themeName?.toUpperCase() || 'VFX HYPER'}
+                🎙️ Narrator: {activeVoiceName} • Studio Human Voice
               </span>
             </div>
 

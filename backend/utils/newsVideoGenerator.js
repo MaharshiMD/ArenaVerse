@@ -1,4 +1,76 @@
 const https = require('https');
+const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
+
+/**
+ * Curated list of ultra-realistic neural human voices.
+ * Powered by Microsoft Azure Neural Speech models (natural breathing, studio broadcast cadence, human intonation).
+ */
+const HUMAN_VOICES = {
+  'christopher': {
+    id: 'en-US-ChristopherNeural',
+    name: 'Christopher',
+    label: 'Christopher (Studio Shoutcaster)',
+    gender: 'Male',
+    style: 'Deep, energetic pro esports caster'
+  },
+  'jenny': {
+    id: 'en-US-JennyNeural',
+    name: 'Jenny',
+    label: 'Jenny (Broadcast Host)',
+    gender: 'Female',
+    style: 'Expressive, warm studio anchor'
+  },
+  'guy': {
+    id: 'en-US-GuyNeural',
+    name: 'Guy',
+    label: 'Guy (News Anchor)',
+    gender: 'Male',
+    style: 'Authoritative, polished news anchor'
+  },
+  'ava': {
+    id: 'en-US-AvaNeural',
+    name: 'Ava',
+    label: 'Ava (Lively Host)',
+    gender: 'Female',
+    style: 'Dynamic, modern gaming streamer'
+  },
+  'andrew': {
+    id: 'en-US-AndrewNeural',
+    name: 'Andrew',
+    label: 'Andrew (Tournament Narrator)',
+    gender: 'Male',
+    style: 'Resonant, cinematic storyteller'
+  }
+};
+
+const DEFAULT_VOICE_KEY = 'christopher';
+
+/**
+ * Resolve voice ID or key to voice metadata object
+ */
+function resolveVoice(voiceKeyOrId) {
+  if (!voiceKeyOrId) return HUMAN_VOICES[DEFAULT_VOICE_KEY];
+
+  const lower = voiceKeyOrId.toLowerCase();
+  for (const [key, voice] of Object.entries(HUMAN_VOICES)) {
+    if (key === lower || voice.id.toLowerCase() === lower || voice.name.toLowerCase() === lower) {
+      return voice;
+    }
+  }
+
+  // If a raw voice ID was provided (e.g. en-US-...)
+  if (voiceKeyOrId.includes('-')) {
+    return {
+      id: voiceKeyOrId,
+      name: voiceKeyOrId.split('-').pop()?.replace('Neural', '') || 'Anchor',
+      label: `${voiceKeyOrId} (Neural Voice)`,
+      gender: 'Neutral',
+      style: 'Broadcast Studio'
+    };
+  }
+
+  return HUMAN_VOICES[DEFAULT_VOICE_KEY];
+}
 
 /**
  * Accurately calculate the duration of an MP3 Buffer by parsing MPEG frame headers
@@ -33,53 +105,27 @@ function getMp3Duration(buf) {
 }
 
 /**
- * Fetch a single TTS audio chunk from Google Translate TTS
- * @param {string} text 
- * @returns {Promise<Buffer>}
- */
-function fetchTtsChunk(text) {
-  return new Promise((resolve, reject) => {
-    const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=en&client=tw-ob&q=' + encodeURIComponent(text);
-    const req = https.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://translate.google.com/'
-      },
-      timeout: 8000
-    }, (res) => {
-      if (res.statusCode !== 200) {
-        return reject(new Error(`TTS returned status code ${res.statusCode}`));
-      }
-      const chunks = [];
-      res.on('data', chunk => chunks.push(chunk));
-      res.on('end', () => resolve(Buffer.concat(chunks)));
-    });
-
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('TTS request timed out'));
-    });
-
-    req.on('error', reject);
-  });
-}
-
-/**
- * Clean text for natural speech pronunciation and clear subtitles
+ * Clean text for natural human pronunciation and clear subtitles
  */
 function cleanSpeechText(text = '') {
   return text
     .replace(/[•*#_~`[\]]/g, ' ')
-    .replace(/\(BMPS\)/gi, 'BMPS')
-    .replace(/\(VCT\)/gi, 'VCT')
-    .replace(/\(FFIC\)/gi, 'FFIC')
+    .replace(/\(BMPS\)/gi, 'B M P S')
+    .replace(/BMPS/g, 'B M P S')
+    .replace(/\(VCT\)/gi, 'V C T')
+    .replace(/VCT/g, 'V C T')
+    .replace(/\(FFIC\)/gi, 'F F I C')
+    .replace(/FFIC/g, 'F F I C')
+    .replace(/CS2/gi, 'C S 2')
+    .replace(/BGMI/gi, 'B G M I')
     .replace(/\(([^)]+)\)/g, '$1')
     .replace(/₹\s*1[,.]?00[,.]?00[,.]?000/g, 'one crore rupees')
     .replace(/₹\s*50[,.]?00[,.]?000/g, 'fifty lakh rupees')
     .replace(/₹\s*([0-9,]+)/g, '$1 rupees')
     .replace(/\$([0-9,]+)/g, '$1 dollars')
     .replace(/vs\./gi, 'versus')
-    .replace(/(\d+)\s*INR/gi, '$1 Indian rupees')
+    .replace(/&/g, ' and ')
+    .replace(/[<>]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -104,80 +150,208 @@ function splitIntoSentences(text) {
 }
 
 /**
- * Compute millisecond-accurate word timings for a specific audio chunk
- * using true acoustic modeling (base vocalization time + phoneme character time + punctuation pause)
+ * Synthesize ultra-realistic human speech using Microsoft Azure Neural Voice
+ * Returns MP3 audio buffer, duration, and exact synchronized word-level timestamps.
  */
-function computeWordTimingsForChunk(chunkText, chunkDuration, baseTime, sentenceIndex) {
-  const words = chunkText.trim().split(/\s+/).filter(Boolean);
-  if (!words.length) return [];
+async function synthesizeNeuralSpeech(scriptText, voiceConfig) {
+  const tts = new MsEdgeTTS();
+  const voiceId = voiceConfig.id;
 
-  // Model natural acoustic vocalization duration
-  const rawDurations = words.map(w => {
-    const lettersOnly = w.replace(/[^a-zA-Z0-9]/g, '');
-    let dur = 0.22 + Math.min(10, lettersOnly.length) * 0.024;
-    if (/[,;:]$/.test(w)) dur += 0.16; // natural clause/comma pause
-    if (/[.!?]$/.test(w)) dur += 0.28; // natural sentence-ending pause
-    return dur;
+  await tts.setMetadata(voiceId, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3, {
+    wordBoundaryEnabled: true
   });
 
-  const totalRaw = rawDurations.reduce((a, b) => a + b, 0);
-  const scaleFactor = chunkDuration / (totalRaw || 1);
+  const { audioStream, metadataStream } = tts.toStream(scriptText);
+  const audioChunks = [];
+  const rawWordBoundaries = [];
 
-  let curTime = baseTime;
-  const result = [];
+  audioStream.on('data', chunk => audioChunks.push(chunk));
 
-  for (let i = 0; i < words.length; i++) {
-    const wordDur = rawDurations[i] * scaleFactor;
-    result.push({
-      word: words[i],
-      sentenceIndex,
-      startTime: Math.round(curTime * 100) / 100,
-      endTime: Math.round((curTime + wordDur) * 100) / 100
+  if (metadataStream) {
+    metadataStream.on('data', data => {
+      try {
+        const parsed = JSON.parse(data.toString());
+        if (parsed.Metadata) {
+          for (const item of parsed.Metadata) {
+            if (item.Type === 'WordBoundary' && item.Data && item.Data.text) {
+              const word = item.Data.text.Text;
+              // Azure 100-nanosecond ticks -> seconds (rounded to 2 decimal places)
+              const startTime = Math.round(item.Data.Offset / 100000) / 100;
+              const endTime = Math.round((item.Data.Offset + item.Data.Duration) / 100000) / 100;
+              rawWordBoundaries.push({
+                word,
+                startTime,
+                endTime
+              });
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore partial metadata frames
+      }
     });
-    curTime += wordDur;
   }
-  return result;
+
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        try { tts.close(); } catch (e) {}
+        reject(new Error('Neural speech synthesis timed out'));
+      }
+    }, 20000);
+
+    audioStream.on('end', () => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeout);
+        try { tts.close(); } catch (e) {}
+        const audioBuffer = Buffer.concat(audioChunks);
+        const measuredDuration = getMp3Duration(audioBuffer);
+        resolve({
+          audioBuffer,
+          duration: Math.round(measuredDuration * 100) / 100,
+          subtitles: rawWordBoundaries
+        });
+      }
+    });
+
+    audioStream.on('error', err => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeout);
+        try { tts.close(); } catch (e) {}
+        reject(err);
+      }
+    });
+  });
 }
 
 /**
- * Synthesize complete speech audio and calculate exact synchronized word timings
+ * Robust Neural Speech Synthesizer with retry
  */
-async function synthesizeAudioAndSubtitles(sentenceChunks) {
-  const audioBuffers = [];
-  const allSubtitles = [];
-  let currentAudioTime = 0;
-
-  for (let sIdx = 0; sIdx < sentenceChunks.length; sIdx++) {
-    const chunkText = sentenceChunks[sIdx];
+async function synthesizeWithRetry(scriptText, voiceConfig, maxRetries = 2) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      const buf = await fetchTtsChunk(chunkText);
-      const chunkDur = getMp3Duration(buf) || (chunkText.split(/\s+/).length * 0.33);
-      
-      const wordsWithTimings = computeWordTimingsForChunk(chunkText, chunkDur, currentAudioTime, sIdx);
-      allSubtitles.push(...wordsWithTimings);
-      
-      audioBuffers.push(buf);
-      currentAudioTime += chunkDur;
-
-      await new Promise(r => setTimeout(r, 60));
+      if (attempt > 1) {
+        console.log(`[NewsVideoGenerator] Retry attempt ${attempt} for neural speech synthesis...`);
+        await new Promise(r => setTimeout(r, 400));
+      }
+      return await synthesizeNeuralSpeech(scriptText, voiceConfig);
     } catch (err) {
-      console.warn(`[NewsVideoGenerator] Chunk synthesis warning for "${chunkText}":`, err.message);
-      const fallbackDur = Math.max(1.5, chunkText.split(/\s+/).length * 0.33);
-      const wordsWithTimings = computeWordTimingsForChunk(chunkText, fallbackDur, currentAudioTime, sIdx);
-      allSubtitles.push(...wordsWithTimings);
-      currentAudioTime += fallbackDur;
+      lastError = err;
+      console.warn(`[NewsVideoGenerator] Neural attempt ${attempt} failed: ${err.message}`);
     }
   }
+  throw lastError;
+}
 
-  const combinedAudio = audioBuffers.length > 0 
-    ? Buffer.concat(audioBuffers) 
-    : Buffer.from([0xff, 0xfb, 0x90, 0x44, 0x00, 0x00, 0x00, 0x00]);
+/**
+ * Fallback synthesizer if neural stream encounters unexpected network issues
+ */
+function synthesizeFallbackChunk(text) {
+  return new Promise((resolve, reject) => {
+    const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=en&client=tw-ob&q=' + encodeURIComponent(text);
+    const req = https.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Referer': 'https://translate.google.com/'
+      },
+      timeout: 8000
+    }, (res) => {
+      if (res.statusCode !== 200) {
+        return reject(new Error(`Fallback TTS returned status code ${res.statusCode}`));
+      }
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+    });
 
-  return {
-    audioUrl: `data:audio/mpeg;base64,${combinedAudio.toString('base64')}`,
-    duration: Math.round(currentAudioTime * 100) / 100,
-    subtitles: allSubtitles
-  };
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Fallback TTS request timed out'));
+    });
+
+    req.on('error', reject);
+  });
+}
+
+/**
+ * Main synthesis coordinator with intelligent fallback
+ */
+async function synthesizeAudioAndSubtitles(sentenceChunks, voiceKeyOrId) {
+  const selectedVoice = resolveVoice(voiceKeyOrId);
+  const fullScript = sentenceChunks.join(' ');
+
+  try {
+    console.log(`[NewsVideoGenerator] Synthesizing human voice via Microsoft Neural Speech (${selectedVoice.label})...`);
+    const result = await synthesizeWithRetry(fullScript, selectedVoice);
+
+    // If word boundaries were captured, ensure indexed consistency
+    let subtitles = result.subtitles;
+    if (!subtitles || subtitles.length === 0) {
+      // Fallback word timings if metadata was empty
+      const words = fullScript.split(/\s+/).filter(Boolean);
+      const durPerWord = result.duration / (words.length || 1);
+      subtitles = words.map((w, idx) => ({
+        word: w,
+        startTime: Math.round(idx * durPerWord * 100) / 100,
+        endTime: Math.round((idx + 1) * durPerWord * 100) / 100
+      }));
+    }
+
+    return {
+      audioUrl: `data:audio/mpeg;base64,${result.audioBuffer.toString('base64')}`,
+      duration: result.duration || 12,
+      subtitles,
+      voice: selectedVoice
+    };
+  } catch (err) {
+    console.warn('[NewsVideoGenerator] Neural TTS encounter notice, switching to secondary voice mode:', err.message);
+
+    // Secondary fallback chunk synthesis
+    const audioBuffers = [];
+    const allSubtitles = [];
+    let currentAudioTime = 0;
+
+    for (let sIdx = 0; sIdx < sentenceChunks.length; sIdx++) {
+      const chunkText = sentenceChunks[sIdx];
+      try {
+        const buf = await synthesizeFallbackChunk(chunkText);
+        const chunkDur = getMp3Duration(buf) || (chunkText.split(/\s+/).length * 0.33);
+        const words = chunkText.split(/\s+/).filter(Boolean);
+        const durPerWord = chunkDur / (words.length || 1);
+
+        for (let wIdx = 0; wIdx < words.length; wIdx++) {
+          allSubtitles.push({
+            word: words[wIdx],
+            sentenceIndex: sIdx,
+            startTime: Math.round((currentAudioTime + wIdx * durPerWord) * 100) / 100,
+            endTime: Math.round((currentAudioTime + (wIdx + 1) * durPerWord) * 100) / 100
+          });
+        }
+
+        audioBuffers.push(buf);
+        currentAudioTime += chunkDur;
+        await new Promise(r => setTimeout(r, 50));
+      } catch (chunkErr) {
+        console.error('[NewsVideoGenerator] Chunk fallback failed:', chunkErr.message);
+      }
+    }
+
+    const combinedAudio = audioBuffers.length > 0 
+      ? Buffer.concat(audioBuffers) 
+      : Buffer.from([0xff, 0xfb, 0x90, 0x44, 0x00, 0x00, 0x00, 0x00]);
+
+    return {
+      audioUrl: `data:audio/mpeg;base64,${combinedAudio.toString('base64')}`,
+      duration: Math.round(currentAudioTime * 100) / 100 || 12,
+      subtitles: allSubtitles,
+      voice: selectedVoice
+    };
+  }
 }
 
 /**
@@ -264,7 +438,7 @@ function generateWaveform(barCount = 36) {
 /**
  * Build multi-scene storyboard synchronized with actual audio timeline
  */
-function buildScenes({ title, game, summary, duration, subtitles }) {
+function buildScenes({ title, game, summary, duration }) {
   const totalDur = duration || 12;
   const t1 = Math.round(totalDur * 0.32 * 10) / 10;
   const t2 = Math.round(totalDur * 0.70 * 10) / 10;
@@ -310,8 +484,9 @@ function buildScenes({ title, game, summary, duration, subtitles }) {
 
 /**
  * Main Generator function: builds full video preview asset packet
+ * with studio-grade human neural voice narration.
  */
-async function generateNewsVideoPreview({ title, game, summary, fullContent }) {
+async function generateNewsVideoPreview({ title, game, summary, fullContent, voice }) {
   const cleanedTitle = cleanSpeechText(title);
   const summarySentences = splitIntoSentences(summary);
 
@@ -320,11 +495,12 @@ async function generateNewsVideoPreview({ title, game, summary, fullContent }) {
     ...summarySentences
   ];
 
-  console.log(`[NewsVideoGenerator] Synthesizing synchronized audio & subtitles for "${title.substring(0, 40)}..." (${sentenceChunks.length} sentence chunks)`);
+  const selectedVoice = resolveVoice(voice);
+  console.log(`[NewsVideoGenerator] Generating broadcast preview for "${title.substring(0, 40)}..." using voice "${selectedVoice.label}"`);
 
-  const { audioUrl, duration, subtitles } = await synthesizeAudioAndSubtitles(sentenceChunks);
+  const { audioUrl, duration, subtitles, voice: activeVoice } = await synthesizeAudioAndSubtitles(sentenceChunks, selectedVoice.id);
 
-  console.log(`[NewsVideoGenerator] Generated audio: ${duration}s, total words: ${subtitles.length}`);
+  console.log(`[NewsVideoGenerator] Generated studio human voice audio: ${duration}s, total words: ${subtitles.length}`);
 
   const vfxTheme = getVfxTheme(game);
   const audioWaveform = generateWaveform(40);
@@ -339,17 +515,20 @@ async function generateNewsVideoPreview({ title, game, summary, fullContent }) {
     vfxTheme,
     scenes,
     subtitles,
+    voice: activeVoice,
     scriptText: sentenceChunks.join(' ')
   };
 }
 
 module.exports = {
+  HUMAN_VOICES,
+  resolveVoice,
   generateNewsVideoPreview,
   synthesizeAudioAndSubtitles,
+  synthesizeNeuralSpeech,
   getMp3Duration,
   cleanSpeechText,
   splitIntoSentences,
-  computeWordTimingsForChunk,
   getVfxTheme,
   generateWaveform
 };

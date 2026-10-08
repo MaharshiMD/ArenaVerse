@@ -13,7 +13,7 @@ const LoginHistory = require('../models/LoginHistory');
 const EsportsNews = require('../models/EsportsNews');
 const QRCode = require('qrcode');
 const { buildGameRegex } = require('../utils/gameUtils');
-const { generateNewsVideoPreview } = require('../utils/newsVideoGenerator');
+const { generateNewsVideoPreview, HUMAN_VOICES } = require('../utils/newsVideoGenerator');
 
 // 1. LFT & LFP
 const getLFTPosts = async (req, res) => {
@@ -542,18 +542,19 @@ const getEsportsNews = async (req, res) => {
 
 const createEsportsNews = async (req, res) => {
   try {
-    const { title, game, source, summary, fullContent, url } = req.body;
+    const { title, game, source, summary, fullContent, url, voice } = req.body;
 
     if (!title || !game || !summary || !fullContent) {
       return res.status(400).json({ message: 'Title, game, summary, and full content are required' });
     }
 
-    console.log(`[EsportsNews] Generating AI Video & Audio Preview for new article: "${title}"...`);
+    console.log(`[EsportsNews] Generating Studio Human Audio Preview for article: "${title}" (Voice: ${voice || 'default'})...`);
     const videoPreview = await generateNewsVideoPreview({
       title,
       game,
       summary,
-      fullContent
+      fullContent,
+      voice
     });
 
     const article = await EsportsNews.create({
@@ -568,7 +569,7 @@ const createEsportsNews = async (req, res) => {
       videoPreview
     });
 
-    console.log(`[EsportsNews] Created article with stored AI video & audio preview in DB: ${article._id}`);
+    console.log(`[EsportsNews] Created article with stored Studio Human Audio in DB: ${article._id}`);
     res.status(201).json(article);
   } catch (error) {
     console.error('[EsportsNews] Error creating article:', error);
@@ -576,17 +577,23 @@ const createEsportsNews = async (req, res) => {
   }
 };
 
+const getEsportsNewsVoices = (req, res) => {
+  res.json({ voices: Object.values(HUMAN_VOICES) });
+};
+
 const regenerateNewsVideo = async (req, res) => {
   try {
     const article = await EsportsNews.findById(req.params.id);
     if (!article) return res.status(404).json({ message: 'Article not found' });
 
-    console.log(`[EsportsNews] Regenerating AI video preview for article ${article._id}...`);
+    const selectedVoice = req.body?.voice || req.query?.voice;
+    console.log(`[EsportsNews] Regenerating studio human audio for article ${article._id} with voice ${selectedVoice || 'default'}...`);
     const videoPreview = await generateNewsVideoPreview({
       title: article.title,
       game: article.game,
       summary: article.summary,
-      fullContent: article.fullContent
+      fullContent: article.fullContent,
+      voice: selectedVoice
     });
 
     article.videoPreview = videoPreview;
@@ -699,6 +706,7 @@ module.exports = {
   getEsportsNews,
   createEsportsNews,
   regenerateNewsVideo,
+  getEsportsNewsVoices,
   generateAIMatchSummary,
   getAIRecommendations,
   getAdminPlatformAnalytics,
